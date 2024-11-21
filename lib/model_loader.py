@@ -50,8 +50,10 @@ class ModelLoader:
         """Aligns the model so that its largest inertia axis is aligned with Z-axis."""
         logging.info("Aligning the model using principal inertia axes...")
         try:
-            _, rotation = mesh.principal_inertia_axes()
+            # Use principal_inertia_vectors instead of principal_inertia_axes
+            inertia_vectors = mesh.principal_inertia_vectors
+            rotation = np.column_stack(inertia_vectors)
             mesh.apply_transform(rotation)
             logging.info("Model aligned successfully.")
         except Exception as e:
-            raise RuntimeError(f"Failed to calculate principal inertia axes: {e}")
+            raise RuntimeError(f"Failed to calculate principal inertia vectors: {e}")
