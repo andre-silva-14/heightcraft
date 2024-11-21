@@ -33,9 +33,9 @@ def test_sample_points_cpu_multithreading(sample_mesh):
         assert np.all(points >= 0) and np.all(points <= 1)
 
 def test_sample_points_invalid_num_samples(sample_mesh):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Number of samples must be a positive integer"):
         PointSampler.sample_points(sample_mesh, num_samples=0, use_gpu=False, num_threads=1)
 
 def test_sample_points_invalid_num_threads(sample_mesh):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Number of threads must be a positive integer"):
         PointSampler.sample_points(sample_mesh, num_samples=1000, use_gpu=False, num_threads=0)
