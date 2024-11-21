@@ -85,5 +85,12 @@ def main():
         # Ensure cleanup even if an exception occurs
         resource_manager.clear_gpu_memory()
 
+def run_tests():
+    """Run all unit tests."""
+    pytest.main(['-v', 'tests'])
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == '--test':
+        run_tests()
+    else:
+        main()
