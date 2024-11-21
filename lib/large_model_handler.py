@@ -63,43 +63,43 @@ class LargeModelHandler:
 
     def sample_points_gpu(self, num_samples: int) -> np.ndarray:
         """Sample points from the model surface using GPU, processing in chunks."""
-        device = torch.device("cuda")
         samples = []
         samples_per_face = num_samples // self.total_faces
         remaining_samples = num_samples % self.total_faces
 
-        for face_chunk in self.stream_faces():
-            vertices = torch.tensor(self.mesh.vertices, dtype=torch.float32, device=device)
-            faces = torch.tensor(face_chunk, dtype=torch.long, device=device)
+        with resource_manager.gpu_session():
+            for face_chunk in self.stream_faces():
+                vertices = resource_manager.allocate_gpu_tensor(self.mesh.vertices, dtype=torch.float32)
+                faces = resource_manager.allocate_gpu_tensor(face_chunk, dtype=torch.long)
 
-            # Compute face areas
-            v0, v1, v2 = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
-            face_areas = 0.5 * torch.norm(torch.cross(v1 - v0, v2 - v0), dim=1)
+                # Compute face areas
+                v0, v1, v2 = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
+                face_areas = 0.5 * torch.norm(torch.cross(v1 - v0, v2 - v0), dim=1)
 
-            # Sample faces based on their areas
-            face_probs = face_areas / torch.sum(face_areas)
-            face_indices = torch.multinomial(face_probs, samples_per_face * len(face_chunk), replacement=True)
+                # Sample faces based on their areas
+                face_probs = face_areas / torch.sum(face_areas)
+                face_indices = torch.multinomial(face_probs, samples_per_face * len(face_chunk), replacement=True)
 
-            # Generate random barycentric coordinates
-            r1, r2 = torch.sqrt(torch.rand(len(face_indices), device=device)), torch.rand(len(face_indices), device=device)
-            sample_points = (
-                (1 - r1.unsqueeze(1)) * vertices[faces[face_indices, 0]] +
-                (r1 * (1 - r2)).unsqueeze(1) * vertices[faces[face_indices, 1]] +
-                (r1 * r2).unsqueeze(1) * vertices[faces[face_indices, 2]]
-            )
+                # Generate random barycentric coordinates
+                r1, r2 = torch.sqrt(torch.rand(len(face_indices), device='cuda')), torch.rand(len(face_indices), device='cuda')
+                sample_points = (
+                    (1 - r1.unsqueeze(1)) * vertices[faces[face_indices, 0]] +
+                    (r1 * (1 - r2)).unsqueeze(1) * vertices[faces[face_indices, 1]] +
+                    (r1 * r2).unsqueeze(1) * vertices[faces[face_indices, 2]]
+                )
 
-            samples.append(sample_points.cpu().numpy())
+                samples.append(sample_points.cpu().numpy())
 
-        # Handle remaining samples
-        if remaining_samples > 0:
-            # Use the last face chunk for simplicity
-            extra_indices = torch.multinomial(face_probs, remaining_samples, replacement=True)
-            r1, r2 = torch.sqrt(torch.rand(remaining_samples, device=device)), torch.rand(remaining_samples, device=device)
-            extra_points = (
-                (1 - r1.unsqueeze(1)) * vertices[faces[extra_indices, 0]] +
-                (r1 * (1 - r2)).unsqueeze(1) * vertices[faces[extra_indices, 1]] +
-                (r1 * r2).unsqueeze(1) * vertices[faces[extra_indices, 2]]
-            )
-            samples.append(extra_points.cpu().numpy())
+            # Handle remaining samples
+            if remaining_samples > 0:
+                # Use the last face chunk for simplicity
+                extra_indices = torch.multinomial(face_probs, remaining_samples, replacement=True)
+                r1, r2 = torch.sqrt(torch.rand(remaining_samples, device='cuda')), torch.rand(remaining_samples, device='cuda')
+                extra_points = (
+                    (1 - r1.unsqueeze(1)) * vertices[faces[extra_indices, 0]] +
+                    (r1 * (1 - r2)).unsqueeze(1) * vertices[faces[extra_indices, 1]] +
+                    (r1 * r2).unsqueeze(1) * vertices[faces[extra_indices, 2]]
+                )
+                samples.append(extra_points.cpu().numpy())
 
         return np.vstack(samples)
