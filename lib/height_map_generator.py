@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import logging
 from typing import Tuple, Union
 import trimesh
-from lib.point_sampler import PointSampler
+from .point_sampler import PointSampler
 
 class HeightMapGenerator:
     @staticmethod
