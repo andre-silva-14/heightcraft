@@ -2,6 +2,7 @@ import trimesh
 import numpy as np
 import torch
 from typing import Iterator, Tuple
+from .resource_manager import resource_manager
 import logging
 
 class LargeModelHandler:
