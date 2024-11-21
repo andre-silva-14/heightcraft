@@ -25,6 +25,23 @@ class HeightMapGenerator:
         logging.info(f"Generating height map with resolution {target_resolution}...")
 
         sampled_points = PointSampler.sample_points(mesh, num_samples, use_gpu, num_threads)
+        return HeightMapGenerator.generate_from_points(sampled_points, target_resolution, bit_depth)
+
+    @staticmethod
+    def generate_from_points(sampled_points: np.ndarray, target_resolution: Tuple[int, int], bit_depth: int = 16) -> np.ndarray:
+        """
+        Generates a height map (grayscale image) from sampled points.
+        
+        Args:
+            sampled_points (np.ndarray): Sampled points from the 3D model surface.
+            target_resolution (Tuple[int, int]): Target resolution (width, height) for the height map.
+            bit_depth (int): Bit depth for the height map (8 or 16).
+        
+        Returns:
+            np.ndarray: Generated height map.
+        """
+        logging.info(f"Generating height map from points with resolution {target_resolution}...")
+
         points_2d = sampled_points[:, :2]
         z_values = sampled_points[:, 2]
 
