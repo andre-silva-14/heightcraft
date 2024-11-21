@@ -3,8 +3,8 @@ import numpy as np
 import torch
 import logging
 from typing import Union
-from .resource_manager import resource_manager
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from .resource_manager import resource_manager
 
 class PointSampler:
     @staticmethod
@@ -21,6 +21,11 @@ class PointSampler:
         Returns:
             np.ndarray: Sampled points.
         """
+        if num_samples <= 0:
+            raise ValueError("Number of samples must be a positive integer.")
+        if num_threads <= 0:
+            raise ValueError("Number of threads must be a positive integer.")
+
         if use_gpu and torch.cuda.is_available():
             return PointSampler._sample_points_on_gpu(mesh, num_samples)
         else:
