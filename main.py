@@ -3,6 +3,7 @@ from lib.model_loader import ModelLoader
 from lib.resolution_calculator import ResolutionCalculator
 from lib.height_map_generator import HeightMapGenerator
 from lib.large_model_handler import LargeModelHandler
+from lib.resource_manager import resource_manager
 import argparse
 import logging
 
