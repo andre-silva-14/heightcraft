@@ -47,38 +47,42 @@ def main():
     args = parse_arguments()
 
     try:
-        if args.large_model:
-            handler = LargeModelHandler(args.file_path, args.chunk_size)
-            handler.load_model_info()
-            min_coords, max_coords = handler.calculate_bounding_box()
-            target_resolution = ResolutionCalculator.calculate_from_bounds(min_coords, max_coords, args.max_resolution)
-            
-            if args.use_gpu:
-                sampled_points = handler.sample_points_gpu(args.num_samples)
+        with resource_manager.gpu_session():
+            if args.large_model:
+                handler = LargeModelHandler(args.file_path, args.chunk_size)
+                handler.load_model_info()
+                min_coords, max_coords = handler.calculate_bounding_box()
+                target_resolution = ResolutionCalculator.calculate_from_bounds(min_coords, max_coords, args.max_resolution)
+                
+                if args.use_gpu:
+                    sampled_points = handler.sample_points_gpu(args.num_samples)
+                else:
+                    sampled_points = handler.sample_points_cpu(args.num_samples)
+                
+                height_map = HeightMapGenerator.generate_from_points(
+                    sampled_points,
+                    target_resolution=target_resolution,
+                    bit_depth=args.bit_depth
+                )
             else:
-                sampled_points = handler.sample_points_cpu(args.num_samples)
+                mesh = ModelLoader.load(args.file_path)
+                target_resolution = ResolutionCalculator.calculate(mesh, args.max_resolution)
+                height_map = HeightMapGenerator.generate(
+                    mesh,
+                    target_resolution=target_resolution,
+                    use_gpu=args.use_gpu,
+                    num_samples=args.num_samples,
+                    num_threads=args.num_threads,
+                    bit_depth=args.bit_depth
+                )
             
-            height_map = HeightMapGenerator.generate_from_points(
-                sampled_points,
-                target_resolution=target_resolution,
-                bit_depth=args.bit_depth
-            )
-        else:
-            mesh = ModelLoader.load(args.file_path)
-            target_resolution = ResolutionCalculator.calculate(mesh, args.max_resolution)
-            height_map = HeightMapGenerator.generate(
-                mesh,
-                target_resolution=target_resolution,
-                use_gpu=args.use_gpu,
-                num_samples=args.num_samples,
-                num_threads=args.num_threads,
-                bit_depth=args.bit_depth
-            )
-        
-        HeightMapGenerator.save_height_map(height_map, args.output_path)
+            HeightMapGenerator.save_height_map(height_map, args.output_path)
     except Exception as e:
         logging.error(f"Error: {e}")
         raise
+    finally:
+        # Ensure cleanup even if an exception occurs
+        resource_manager.clear_gpu_memory()
 
 if __name__ == "__main__":
     main()
