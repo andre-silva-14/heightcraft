@@ -1,4 +1,5 @@
 import trimesh
+import numpy as np
 import logging
 from typing import Tuple
 
@@ -21,8 +22,28 @@ class ResolutionCalculator:
         logging.info("Calculating dynamic resolution...")
         
         bounds = mesh.bounds
-        model_width = bounds[1][0] - bounds[0][0]  # X range
-        model_height = bounds[1][1] - bounds[0][1]  # Y range
+        return ResolutionCalculator.calculate_from_bounds(bounds[0], bounds[1], max_resolution)
+
+    @staticmethod
+    def calculate_from_bounds(min_coords: np.ndarray, max_coords: np.ndarray, max_resolution: int) -> Tuple[int, int]:
+        """
+        Calculates the dynamic resolution based on the model's bounding box.
+        
+        Args:
+            min_coords (np.ndarray): Minimum coordinates of the bounding box.
+            max_coords (np.ndarray): Maximum coordinates of the bounding box.
+            max_resolution (int): Maximum resolution for the longest dimension.
+        
+        Returns:
+            Tuple[int, int]: Width and height of the calculated resolution.
+        
+        Raises:
+            ValueError: If the model bounding box has zero width or height.
+        """
+        logging.info("Calculating dynamic resolution from bounding box...")
+        
+        model_width = max_coords[0] - min_coords[0]
+        model_height = max_coords[1] - min_coords[1]
 
         if model_width <= 0 or model_height <= 0:
             raise ValueError("Model bounding box has zero or negative width or height.")
