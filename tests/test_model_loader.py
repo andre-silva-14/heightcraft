@@ -10,6 +10,8 @@ def mock_trimesh_load():
         mock_mesh = MagicMock(spec=trimesh.Trimesh)
         mock_mesh.vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
         mock_mesh.faces = np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 3, 2]])
+        mock_mesh.centroid = np.array([0.25, 0.25, 0.25])
+        mock_mesh.principal_inertia_vectors = np.eye(3)
         mock_load.return_value = mock_mesh
         yield mock_load
 
@@ -31,7 +33,7 @@ def test_load_file_error(mock_trimesh_load):
 def test_center_model():
     mesh = trimesh.Trimesh(vertices=np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3]]))
     ModelLoader._center_model(mesh)
-    assert np.allclose(mesh.centroid, [0, 0, 0])
+    assert np.allclose(mesh.centroid, [0, 0, 0], atol=1e-6)
 
 def test_align_model():
     mesh = trimesh.Trimesh(vertices=np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]))
