@@ -30,27 +30,27 @@ class PointSampler:
         """Samples points uniformly from the surface of a 3D model on the GPU."""
         logging.info(f"Sampling {num_samples} points from the 3D model using GPU...")
 
-        device = torch.device("cuda")
-        vertices = torch.tensor(mesh.vertices, dtype=torch.float32, device=device)
-        faces = torch.tensor(mesh.faces, dtype=torch.long, device=device)
+        with resource_manager.gpu_session():
+            vertices = resource_manager.allocate_gpu_tensor(mesh.vertices, dtype=torch.float32)
+            faces = resource_manager.allocate_gpu_tensor(mesh.faces, dtype=torch.long)
 
-        v0, v1, v2 = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
-        face_areas = 0.5 * torch.norm(torch.cross(v1 - v0, v2 - v0), dim=1)
-        face_probs = face_areas / torch.sum(face_areas)
+            v0, v1, v2 = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
+            face_areas = 0.5 * torch.norm(torch.cross(v1 - v0, v2 - v0), dim=1)
+            face_probs = face_areas / torch.sum(face_areas)
 
-        face_indices = torch.multinomial(face_probs, num_samples, replacement=True)
-        r1, r2 = torch.sqrt(torch.rand(num_samples, device=device)), torch.rand(num_samples, device=device)
-        u, v, w = 1 - r1, r1 * (1 - r2), r1 * r2
+            face_indices = torch.multinomial(face_probs, num_samples, replacement=True)
+            r1, r2 = torch.sqrt(torch.rand(num_samples, device='cuda')), torch.rand(num_samples, device='cuda')
+            u, v, w = 1 - r1, r1 * (1 - r2), r1 * r2
 
-        sampled_faces = faces[face_indices]
-        sampled_points = (
-            u.unsqueeze(1) * vertices[sampled_faces[:, 0]] +
-            v.unsqueeze(1) * vertices[sampled_faces[:, 1]] +
-            w.unsqueeze(1) * vertices[sampled_faces[:, 2]]
-        )
+            sampled_faces = faces[face_indices]
+            sampled_points = (
+                u.unsqueeze(1) * vertices[sampled_faces[:, 0]] +
+                v.unsqueeze(1) * vertices[sampled_faces[:, 1]] +
+                w.unsqueeze(1) * vertices[sampled_faces[:, 2]]
+            )
 
-        logging.info(f"Sampling complete: {num_samples} points generated.")
-        return sampled_points.cpu().numpy()
+            logging.info(f"Sampling complete: {num_samples} points generated.")
+            return sampled_points.cpu().numpy()
 
     @staticmethod
     def _sample_points_on_cpu(mesh: trimesh.Trimesh, num_samples: int, num_threads: int) -> np.ndarray:
