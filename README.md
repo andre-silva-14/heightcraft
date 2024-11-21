@@ -56,3 +56,6 @@ Use GPU acceleration instead of CPU processing
 
     $ main.py path/to/model.obj --use_gpu
 
+For large models, use the large_model flag with an optional chunk size limit (Default: 1000000)
+
+    $ main.py path/to/large_model.obj --large_model --chunk_size 1500000
