@@ -23,7 +23,7 @@ This project generates a height map from a 3D model file. It supports various 3D
 Ensure you have Python 3.x installed along with the required packages:
 
 ```bash
-pip install trimesh numpy matplotlib torch
+pip install -r requirements.txt
 ```
 
 # Usage
