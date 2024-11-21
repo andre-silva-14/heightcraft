@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import logging
 from typing import Union
+from .resource_manager import resource_manager
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class PointSampler:
