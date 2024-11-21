@@ -2,8 +2,8 @@ import trimesh
 import numpy as np
 import torch
 from typing import Iterator, Tuple
-from .resource_manager import resource_manager
 import logging
+from .resource_manager import resource_manager
 
 class LargeModelHandler:
     def __init__(self, file_path: str, chunk_size: int = 1000000):
@@ -16,9 +16,9 @@ class LargeModelHandler:
     def load_model_info(self):
         """Load basic information about the model without loading the entire mesh."""
         logging.info(f"Loading model info from {self.file_path}")
-        with trimesh.load(self.file_path, process=False) as temp_mesh:
-            self.total_vertices = len(temp_mesh.vertices)
-            self.total_faces = len(temp_mesh.faces)
+        temp_mesh = trimesh.load(self.file_path, process=False)
+        self.total_vertices = len(temp_mesh.vertices)
+        self.total_faces = len(temp_mesh.faces)
         logging.info(f"Model has {self.total_vertices} vertices and {self.total_faces} faces")
 
     def stream_vertices(self) -> Iterator[np.ndarray]:
@@ -50,14 +50,15 @@ class LargeModelHandler:
         samples_per_face = num_samples // self.total_faces
         remaining_samples = num_samples % self.total_faces
 
-        for face_chunk in self.stream_faces():
-            chunk_samples = trimesh.sample.sample_surface_even(trimesh.Trimesh(vertices=self.mesh.vertices, faces=face_chunk), 
-                                                               samples_per_face * len(face_chunk))
-            samples.append(chunk_samples)
+        with trimesh.load(self.file_path, process=False) as mesh:
+            for face_chunk in self.stream_faces():
+                chunk_samples = trimesh.sample.sample_surface_even(trimesh.Trimesh(vertices=mesh.vertices, faces=face_chunk), 
+                                                                   samples_per_face * len(face_chunk))
+                samples.append(chunk_samples)
 
         # Handle remaining samples
         if remaining_samples > 0:
-            extra_samples = trimesh.sample.sample_surface_even(self.mesh, remaining_samples)
+            extra_samples = trimesh.sample.sample_surface_even(mesh, remaining_samples)
             samples.append(extra_samples)
 
         return np.vstack(samples)
@@ -69,27 +70,28 @@ class LargeModelHandler:
         remaining_samples = num_samples % self.total_faces
 
         with resource_manager.gpu_session():
-            for face_chunk in self.stream_faces():
-                vertices = resource_manager.allocate_gpu_tensor(self.mesh.vertices, dtype=torch.float32)
-                faces = resource_manager.allocate_gpu_tensor(face_chunk, dtype=torch.long)
+            with trimesh.load(self.file_path, process=False) as mesh:
+                vertices = resource_manager.allocate_gpu_tensor(mesh.vertices, dtype=torch.float32)
+                for face_chunk in self.stream_faces():
+                    faces = resource_manager.allocate_gpu_tensor(face_chunk, dtype=torch.long)
 
-                # Compute face areas
-                v0, v1, v2 = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
-                face_areas = 0.5 * torch.norm(torch.cross(v1 - v0, v2 - v0), dim=1)
+                    # Compute face areas
+                    v0, v1, v2 = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
+                    face_areas = 0.5 * torch.norm(torch.cross(v1 - v0, v2 - v0), dim=1)
 
-                # Sample faces based on their areas
-                face_probs = face_areas / torch.sum(face_areas)
-                face_indices = torch.multinomial(face_probs, samples_per_face * len(face_chunk), replacement=True)
+                    # Sample faces based on their areas
+                    face_probs = face_areas / torch.sum(face_areas)
+                    face_indices = torch.multinomial(face_probs, samples_per_face * len(face_chunk), replacement=True)
 
-                # Generate random barycentric coordinates
-                r1, r2 = torch.sqrt(torch.rand(len(face_indices), device='cuda')), torch.rand(len(face_indices), device='cuda')
-                sample_points = (
-                    (1 - r1.unsqueeze(1)) * vertices[faces[face_indices, 0]] +
-                    (r1 * (1 - r2)).unsqueeze(1) * vertices[faces[face_indices, 1]] +
-                    (r1 * r2).unsqueeze(1) * vertices[faces[face_indices, 2]]
-                )
+                    # Generate random barycentric coordinates
+                    r1, r2 = torch.sqrt(torch.rand(len(face_indices), device='cuda')), torch.rand(len(face_indices), device='cuda')
+                    sample_points = (
+                        (1 - r1.unsqueeze(1)) * vertices[faces[face_indices, 0]] +
+                        (r1 * (1 - r2)).unsqueeze(1) * vertices[faces[face_indices, 1]] +
+                        (r1 * r2).unsqueeze(1) * vertices[faces[face_indices, 2]]
+                    )
 
-                samples.append(sample_points.cpu().numpy())
+                    samples.append(sample_points.cpu().numpy())
 
             # Handle remaining samples
             if remaining_samples > 0:
