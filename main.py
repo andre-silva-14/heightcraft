@@ -1,4 +1,4 @@
-# File: height_map_generator_dynamic_resolution.py
+#! /usr/bin/env python3
 import trimesh
 import numpy as np
 import matplotlib.pyplot as plt
@@ -49,16 +49,20 @@ def calculate_dynamic_resolution(mesh, max_resolution):
     bounds = mesh.bounds
     model_width = bounds[1][0] - bounds[0][0]  # X range
     model_height = bounds[1][1] - bounds[0][1]  # Y range
-    aspect_ratio = model_width / model_height if model_height != 0 else 1.0
+
+    if model_width == 0 or model_height == 0:
+        raise ValueError("Model bounding box has zero width or height, cannot calculate aspect ratio.")
+
+    aspect_ratio = model_width / model_height
 
     if aspect_ratio >= 1.0:
         # Wider than tall
         width = max_resolution
-        height = int(width / aspect_ratio)
+        height = max(1, int(width / aspect_ratio))
     else:
         # Taller than wide
         height = max_resolution
-        width = int(height * aspect_ratio)
+        width = max(1, int(height * aspect_ratio))
 
     logging.info(f"Dynamic resolution determined: {width}x{height}")
     return width, height
@@ -108,6 +112,9 @@ def sample_points_on_gpu(mesh, num_samples, device="cuda"):
 def generate_height_map(mesh, target_resolution, use_gpu=True, num_samples=10000, num_threads=4):
     """Generates a height map (grayscale image) from a 3D model."""
     device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
+    if device.type == "cpu" and use_gpu:
+        logging.warning("GPU not available, falling back to CPU.")
+
     logging.info(f"Using device: {device}")
 
     # Sampling points
@@ -128,46 +135,27 @@ def generate_height_map(mesh, target_resolution, use_gpu=True, num_samples=10000
     width, height = target_resolution
     bounds = (min_x, max_x, min_y, max_y, min_z, max_z)
 
-    if device.type == "cuda":
-        # GPU-based height map generation
-        height_map = torch.zeros((height, width), dtype=torch.float32, device=device)
-        x_coords = ((points_2d[:, 0] - min_x) / (max_x - min_x) * (width - 1)).astype(int)
-        y_coords = ((points_2d[:, 1] - min_y) / (max_y - min_y) * (height - 1)).astype(int)
-        z_normalized = ((z_values - min_z) / (max_z - min_z) * 255).astype(int)
-        for x, y, z in zip(x_coords, y_coords, z_normalized):
-            height_map[y, x] = max(height_map[y, x], z)
-        return height_map.cpu().numpy()
-    else:
-        # CPU-based height map generation with parallel processing
-        logging.info(f"Processing height map in parallel using {num_threads} threads...")
-        points_batches = np.array_split(points_2d, num_threads)
-        z_batches = np.array_split(z_values, num_threads)
-        height_map = np.zeros((height, width))
-        with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = [
-                executor.submit(
-                    process_points_cpu, points_batches[i], z_batches[i], bounds, target_resolution
-                )
-                for i in range(num_threads)
-            ]
-            for future in as_completed(futures):
-                height_map = np.maximum(height_map, future.result())
-        return height_map
+    # Generate height map
+    height_map = np.zeros((height, width))
+    x_coords = ((points_2d[:, 0] - min_x) / (max_x - min_x) * (width - 1)).astype(int)
+    y_coords = ((points_2d[:, 1] - min_y) / (max_y - min_y) * (height - 1)).astype(int)
+    z_normalized = ((z_values - min_z) / (max_z - min_z) * 255).astype(int)
+
+    for x, y, z in zip(x_coords, y_coords, z_normalized):
+        height_map[y, x] = max(height_map[y, x], z)
+
+    logging.info("Height map generation complete.")
+    return height_map
 
 
-def display_image(image):
-    """Displays the height map using matplotlib."""
-    logging.info("Displaying the height map...")
-    plt.imshow(image, cmap='gray', vmin=0, vmax=255)
-    plt.axis('off')  # Hide axes
-    plt.show()
-
-
-def save_height_map(image, output_path="height_map.png"):
-    """Saves the generated height map to a file."""
-    logging.info(f"Saving the height map to {output_path}...")
-    plt.imsave(output_path, image, cmap='gray', vmin=0, vmax=255)
-    logging.info(f"Height map saved successfully to {output_path}.")
+def validate_args(args):
+    """Validates input arguments."""
+    if args.max_resolution <= 0:
+        raise ValueError("Maximum resolution must be a positive integer.")
+    if args.num_samples <= 0:
+        raise ValueError("Number of samples must be a positive integer.")
+    if args.num_threads < 1:
+        raise ValueError("Number of threads must be at least 1.")
 
 
 def main():
@@ -207,6 +195,7 @@ def main():
     args = parser.parse_args()
 
     try:
+        validate_args(args)
         logging.info("Starting the height map generation process...")
         mesh = load_3d_model(args.file_path)
         target_resolution = calculate_dynamic_resolution(mesh, args.max_resolution)
@@ -217,9 +206,10 @@ def main():
             num_samples=args.num_samples,
             num_threads=args.num_threads,
         )
-        display_image(height_map)  # Show the height map
-        save_height_map(height_map, args.output_path)  # Save the height map
-        logging.info("Height map generation completed successfully.")
+        plt.imshow(height_map, cmap="gray")
+        plt.axis("off")
+        plt.savefig(args.output_path)
+        logging.info(f"Height map saved to {args.output_path}")
     except Exception as e:
         logging.error(f"Error: {e}")
 
