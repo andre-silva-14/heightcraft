@@ -46,6 +46,8 @@ class ModelLoader:
         if len(mesh.vertices) > 0:
             centroid = np.mean(mesh.vertices, axis=0)
             mesh.apply_translation(-centroid)
+        else:
+            logging.warning("Cannot center an empty mesh.")
 
     @staticmethod
     def _align_model(mesh: trimesh.Trimesh) -> None:
@@ -53,11 +55,15 @@ class ModelLoader:
         logging.info("Aligning the model using principal inertia axes...")
         try:
             if len(mesh.vertices) > 0 and len(mesh.faces) > 0:
-                _, rotation = trimesh.inertia.principal_axis(mesh)
-                rotation_matrix = np.eye(4)
-                rotation_matrix[:3, :3] = rotation
-                mesh.apply_transform(rotation_matrix)
-                logging.info("Model aligned successfully.")
+                inertia = mesh.moment_inertia
+                if np.any(inertia):
+                    _, rotation = np.linalg.eigh(inertia)
+                    rotation_matrix = np.eye(4)
+                    rotation_matrix[:3, :3] = rotation.T
+                    mesh.apply_transform(rotation_matrix)
+                    logging.info("Model aligned successfully.")
+                else:
+                    logging.warning("Inertia tensor is zero. Cannot align the model.")
             else:
                 logging.warning("Not enough vertices or faces to align the model.")
         except Exception as e:

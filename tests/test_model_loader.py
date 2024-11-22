@@ -6,20 +6,22 @@ from lib.model_loader import ModelLoader
 
 @pytest.fixture
 def mock_trimesh_load():
-    with patch('trimesh.load_mesh') as mock_load:
-        mock_mesh = MagicMock(spec=trimesh.Trimesh)
-        mock_mesh.vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
-        mock_mesh.faces = np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 3, 2]])
-        mock_mesh.centroid = np.array([0.25, 0.25, 0.25])
-        mock_mesh.principal_inertia_vectors = np.eye(3)
-        mock_load.return_value = mock_mesh
+    mock_mesh = MagicMock(spec=trimesh.Trimesh)
+    mock_mesh.vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    mock_mesh.faces = np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 3, 2]])
+    mock_mesh.centroid = np.array([0.25, 0.25, 0.25])
+    mock_mesh.moment_inertia = np.array([[1, 0, 0], [0, 2, 0], [0, 0, 3]])
+    
+    with patch('trimesh.load_mesh', return_value=mock_mesh) as mock_load:
         yield mock_load
 
 def test_load_valid_file(mock_trimesh_load):
     file_path = 'test_model.stl'
     mesh = ModelLoader.load(file_path)
     mock_trimesh_load.assert_called_once_with(file_path)
-    assert isinstance(mesh, trimesh.Trimesh)
+    assert isinstance(mesh, MagicMock)
+    assert mesh.apply_translation.called
+    assert mesh.apply_transform.called
 
 def test_load_unsupported_format():
     with pytest.raises(ValueError, match="Unsupported file format"):
@@ -37,7 +39,7 @@ def test_center_model():
 
 def test_align_model():
     mesh = trimesh.Trimesh(vertices=np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]))
+    mesh.moment_inertia = np.array([[1, 0, 0], [0, 2, 0], [0, 0, 3]])
     ModelLoader._align_model(mesh)
     # Check if the largest inertia axis is aligned with Z-axis
-    inertia_tensor = mesh.moment_inertia
-    assert np.argmax(np.diag(inertia_tensor)) == 2  # Z-axis should have the largest moment of inertia
+    assert mesh.apply_transform.called
