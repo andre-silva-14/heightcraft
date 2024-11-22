@@ -4,6 +4,7 @@ from lib.resolution_calculator import ResolutionCalculator
 from lib.height_map_generator import HeightMapGenerator
 from lib.large_model_handler import LargeModelHandler
 from lib.resource_manager import resource_manager
+from lib.upscaler import HeightMapUpscaler, load_pretrained_model
 import argparse
 import logging
 import sys
@@ -37,6 +38,9 @@ def parse_arguments():
     parser.add_argument("--large_model", action="store_true", help="Use memory-efficient techniques for large models.")
     parser.add_argument("--chunk_size", type=int, default=1000000, help="Chunk size for processing large models. Default: 1,000,000.")
     parser.add_argument("--split", type=validate_split, default=1, help="Number of files to split the output into (must form a grid)")
+    parser.add_argument("--upscale", action="store_true", help="Enable upscaling of the generated height map.")
+    parser.add_argument("--upscale_factor", type=int, default=2, help="Factor by which to upscale the height map. Default: 2.")
+    parser.add_argument("--pretrained_model", type=str, help="Path to pretrained upscaling model (optional).")
 
     args = parser.parse_args()
     validate_arguments(args)
@@ -52,6 +56,8 @@ def validate_arguments(args):
         raise ValueError("Number of threads must be at least 1.")
     if args.chunk_size <= 0:
         raise ValueError("Chunk size must be a positive integer.")
+    if args.upscale and args.upscale_factor < 2:
+        raise ValueError("Upscale factor must be at least 2.")
 
 def main():
     """Main function to run the height map generation process."""
@@ -87,6 +93,12 @@ def main():
                     num_threads=args.num_threads,
                     bit_depth=args.bit_depth
                 )
+
+            if args.upscale:
+                logging.info("Upscaling the generated height map...")
+                upscaler = load_pretrained_model(args.pretrained_model) if args.pretrained_model else HeightMapUpscaler()
+                height_map = upscaler.upscale(height_map, args.upscale_factor)
+                logging.info("Upscaling completed.")
             
             HeightMapGenerator.save_height_map(height_map, args.output_path, args.split)
     except Exception as e:

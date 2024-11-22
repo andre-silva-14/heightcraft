@@ -1,6 +1,7 @@
 trimesh
-numpy
-matplotlib
+numpy>=1.19.5
+matplotlib>=3.3.4
 torch
 pytest
 scipy
+tensorflow>=2.6.0
