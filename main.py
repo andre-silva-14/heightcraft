@@ -6,6 +6,8 @@ from lib.large_model_handler import LargeModelHandler
 from lib.resource_manager import resource_manager
 import argparse
 import logging
+import sys
+import math
 
 def setup_logging():
     """Configures logging for the application."""
@@ -13,6 +15,14 @@ def setup_logging():
         format='%(asctime)s - %(levelname)s - %(message)s',
         level=logging.INFO
     )
+
+def validate_split(value):
+    ivalue = int(value)
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError(f"{value} is an invalid split value. Must be a positive integer.")
+    if not math.isqrt(ivalue) ** 2 == ivalue and not any(ivalue % i == 0 for i in range(2, int(math.sqrt(ivalue)) + 1)):
+        raise argparse.ArgumentTypeError(f"{value} is an invalid split value. Must be able to form a grid (e.g., 4, 9, 12).")
+    return ivalue
 
 def parse_arguments():
     """Parses and validates command-line arguments."""
@@ -26,6 +36,7 @@ def parse_arguments():
     parser.add_argument("--bit_depth", type=int, choices=[8, 16], default=16, help="Bit depth for the height map. Default: 16.")
     parser.add_argument("--large_model", action="store_true", help="Use memory-efficient techniques for large models.")
     parser.add_argument("--chunk_size", type=int, default=1000000, help="Chunk size for processing large models. Default: 1,000,000.")
+    parser.add_argument("--split", type=validate_split, default=1, help="Number of files to split the output into (must form a grid)")
 
     args = parser.parse_args()
     validate_arguments(args)
@@ -77,7 +88,7 @@ def main():
                     bit_depth=args.bit_depth
                 )
             
-            HeightMapGenerator.save_height_map(height_map, args.output_path)
+            HeightMapGenerator.save_height_map(height_map, args.output_path, args.split)
     except Exception as e:
         logging.error(f"Error: {e}")
         raise

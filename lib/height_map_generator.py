@@ -4,6 +4,8 @@ import logging
 from typing import Tuple, Union
 import trimesh
 from .point_sampler import PointSampler
+import os
+import math
 
 class HeightMapGenerator:
     @staticmethod
@@ -69,13 +71,78 @@ class HeightMapGenerator:
         return height_map
 
     @staticmethod
-    def save_height_map(height_map: np.ndarray, output_path: str) -> None:
+    def save_height_map(height_map: np.ndarray, output_path: str, split: int = 1) -> None:
         """
         Saves the generated height map to the specified output path.
         
         Args:
             height_map (np.ndarray): The generated height map.
             output_path (str): Path to save the generated height map.
+            split (int): Number of files to split the output into (must form a grid).
         """
-        plt.imsave(output_path, height_map, cmap="gray")
-        logging.info(f"Height map saved to {output_path}")
+        if split == 1:
+            plt.imsave(output_path, height_map, cmap="gray")
+            logging.info(f"Height map saved to {output_path}")
+        else:
+            HeightMapGenerator._save_split_height_maps(height_map, output_path, split)
+
+    @staticmethod
+    def _save_split_height_maps(height_map: np.ndarray, output_path: str, split: int) -> None:
+        """
+        Splits the height map into a grid and saves each part as a separate file.
+        
+        Args:
+            height_map (np.ndarray): The generated height map.
+            output_path (str): Base path for saving the split height maps.
+            split (int): Number of files to split the output into.
+        """
+        height, width = height_map.shape
+        grid_rows, grid_cols = HeightMapGenerator._get_optimal_grid(split, height, width)
+        
+        part_height = height // grid_rows
+        part_width = width // grid_cols
+
+        base_name, ext = os.path.splitext(output_path)
+        
+        for i in range(grid_rows):
+            for j in range(grid_cols):
+                start_y = i * part_height
+                end_y = start_y + part_height
+                start_x = j * part_width
+                end_x = start_x + part_width
+                
+                part = height_map[start_y:end_y, start_x:end_x]
+                part_path = f"{base_name}_part_{i}_{j}{ext}"
+                
+                plt.imsave(part_path, part, cmap="gray")
+                logging.info(f"Height map part saved to {part_path}")
+
+    @staticmethod
+    def _get_optimal_grid(split: int, height: int, width: int) -> Tuple[int, int]:
+        """
+        Determines the optimal grid layout based on the split value and image dimensions.
+        
+        Args:
+            split (int): Number of files to split the output into.
+            height (int): Height of the image.
+            width (int): Width of the image.
+        
+        Returns:
+            Tuple[int, int]: Number of rows and columns in the grid.
+        """
+        aspect_ratio = width / height
+        
+        # Check if split is a perfect square
+        sqrt_split = math.isqrt(split)
+        if sqrt_split ** 2 == split:
+            return sqrt_split, sqrt_split
+        
+        # Find the factor pair that's closest to the aspect ratio
+        factors = [(i, split // i) for i in range(1, int(math.sqrt(split)) + 1) if split % i == 0]
+        optimal_factor = min(factors, key=lambda x: abs(x[1] / x[0] - aspect_ratio))
+        
+        # Determine which dimension (height or width) should have more divisions
+        if aspect_ratio >= 1:
+            return optimal_factor[1], optimal_factor[0]  # More columns than rows
+        else:
+            return optimal_factor[0], optimal_factor[1]  # More rows than columns

@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import trimesh
+import os
 from lib.height_map_generator import HeightMapGenerator
 
 @pytest.fixture
@@ -44,3 +45,19 @@ def test_save_height_map(tmp_path):
     output_path = tmp_path / "test_height_map.png"
     HeightMapGenerator.save_height_map(height_map, str(output_path))
     assert output_path.exists()
+
+def test_save_split_height_maps(tmp_path):
+    height_map = np.random.randint(0, 65536, size=(100, 100), dtype=np.uint16)
+    output_path = tmp_path / "test_height_map.png"
+    HeightMapGenerator.save_height_map(height_map, str(output_path), split=4)
+    
+    assert (tmp_path / "test_height_map_part_0_0.png").exists()
+    assert (tmp_path / "test_height_map_part_0_1.png").exists()
+    assert (tmp_path / "test_height_map_part_1_0.png").exists()
+    assert (tmp_path / "test_height_map_part_1_1.png").exists()
+
+def test_get_optimal_grid():
+    assert HeightMapGenerator._get_optimal_grid(4, 100, 100) == (2, 2)
+    assert HeightMapGenerator._get_optimal_grid(9, 100, 100) == (3, 3)
+    assert HeightMapGenerator._get_optimal_grid(8, 100, 200) == (2, 4)
+    assert HeightMapGenerator._get_optimal_grid(8, 200, 100) == (4, 2)
