@@ -143,6 +143,6 @@ class HeightMapGenerator:
         
         # Determine which dimension (height or width) should have more divisions
         if aspect_ratio >= 1:
-            return optimal_factor[1], optimal_factor[0]  # More columns than rows
+            return optimal_factor[0], optimal_factor[1]  # More columns than rows
         else:
-            return optimal_factor[0], optimal_factor[1]  # More rows than columns
+            return optimal_factor[1], optimal_factor[0]  # More rows than columns

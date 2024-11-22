@@ -61,3 +61,5 @@ def test_get_optimal_grid():
     assert HeightMapGenerator._get_optimal_grid(9, 100, 100) == (3, 3)
     assert HeightMapGenerator._get_optimal_grid(8, 100, 200) == (2, 4)
     assert HeightMapGenerator._get_optimal_grid(8, 200, 100) == (4, 2)
+    assert HeightMapGenerator._get_optimal_grid(6, 100, 200) == (2, 3)
+    assert HeightMapGenerator._get_optimal_grid(6, 200, 100) == (3, 2)
