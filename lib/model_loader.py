@@ -43,17 +43,22 @@ class ModelLoader:
     def _center_model(mesh: trimesh.Trimesh) -> None:
         """Centers the model at the origin."""
         logging.info("Centering the model at the origin...")
-        mesh.apply_translation(-mesh.centroid)
+        if len(mesh.vertices) > 0:
+            centroid = np.mean(mesh.vertices, axis=0)
+            mesh.apply_translation(-centroid)
 
     @staticmethod
     def _align_model(mesh: trimesh.Trimesh) -> None:
         """Aligns the model so that its largest inertia axis is aligned with Z-axis."""
         logging.info("Aligning the model using principal inertia axes...")
         try:
-            # Use principal_inertia_vectors instead of principal_inertia_axes
-            inertia_vectors = mesh.principal_inertia_vectors
-            rotation = np.column_stack(inertia_vectors)
-            mesh.apply_transform(rotation)
-            logging.info("Model aligned successfully.")
+            if len(mesh.vertices) > 0 and len(mesh.faces) > 0:
+                _, rotation = trimesh.inertia.principal_axis(mesh)
+                rotation_matrix = np.eye(4)
+                rotation_matrix[:3, :3] = rotation
+                mesh.apply_transform(rotation_matrix)
+                logging.info("Model aligned successfully.")
+            else:
+                logging.warning("Not enough vertices or faces to align the model.")
         except Exception as e:
-            raise RuntimeError(f"Failed to calculate principal inertia vectors: {e}")
+            raise RuntimeError(f"Failed to calculate principal inertia axes: {e}")
