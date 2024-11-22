@@ -12,8 +12,8 @@ def sample_mesh():
 def test_calculate_resolution(sample_mesh):
     max_resolution = 100
     width, height = ResolutionCalculator.calculate(sample_mesh, max_resolution)
-    assert width == 100
-    assert height == 200
+    assert width == 50
+    assert height == 100
 
 def test_calculate_resolution_square_model():
     vertices = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]])
