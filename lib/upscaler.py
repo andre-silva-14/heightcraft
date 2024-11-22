@@ -37,8 +37,12 @@ class HeightMapUpscaler:
         """
         logging.info(f"Upscaling height map by a factor of {scale_factor}...")
 
+        # Store the original min and max values
+        original_min = np.min(height_map)
+        original_max = np.max(height_map)
+
         # Normalize the height map to [0, 1] range
-        height_map_normalized = (height_map - np.min(height_map)) / (np.max(height_map) - np.min(height_map))
+        height_map_normalized = (height_map - original_min) / (original_max - original_min)
 
         # Resize the image using bicubic interpolation
         height, width = height_map_normalized.shape
@@ -49,8 +53,11 @@ class HeightMapUpscaler:
         # Apply the SRCNN model for enhancement
         enhanced = self.model.predict(resized)
 
+        # Ensure the enhanced image is in the range [0, 1]
+        enhanced = np.clip(enhanced, 0, 1)
+
         # Denormalize the result back to the original range
-        result = enhanced.squeeze() * (np.max(height_map) - np.min(height_map)) + np.min(height_map)
+        result = enhanced.squeeze() * (original_max - original_min) + original_min
 
         logging.info("Upscaling completed.")
         return result.astype(height_map.dtype)

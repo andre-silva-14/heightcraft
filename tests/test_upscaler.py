@@ -25,8 +25,9 @@ def test_upscale_factor(sample_height_map):
 def test_upscale_preserves_range(sample_height_map):
     upscaler = HeightMapUpscaler()
     upscaled = upscaler.upscale(sample_height_map)
-    assert np.min(upscaled) >= np.min(sample_height_map)
-    assert np.max(upscaled) <= np.max(sample_height_map)
+    assert np.min(upscaled) >= np.min(sample_height_map) - 1e-6  # Allow for small floating-point errors
+    assert np.max(upscaled) <= np.max(sample_height_map) + 1e-6  # Allow for small floating-point errors
+
 
 def test_upscale_without_pretrained_model(sample_height_map):
     upscaler = HeightMapUpscaler()
