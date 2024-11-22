@@ -33,13 +33,25 @@ def test_load_file_error(mock_trimesh_load):
         ModelLoader.load('nonexistent_file.stl')
 
 def test_center_model():
-    mesh = trimesh.Trimesh(vertices=np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3]]))
+    mesh = MagicMock(spec=trimesh.Trimesh)
+    mesh.vertices = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3]])
+    mesh.centroid = np.array([2, 2, 2])
+    
     ModelLoader._center_model(mesh)
-    assert np.allclose(mesh.centroid, [0, 0, 0], atol=1e-6)
+    
+    mesh.apply_translation.assert_called_once()
+    translation_arg = mesh.apply_translation.call_args[0][0]
+    assert np.allclose(translation_arg, [-2, -2, -2], atol=1e-6)
 
 def test_align_model():
-    mesh = trimesh.Trimesh(vertices=np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]))
+    mesh = MagicMock(spec=trimesh.Trimesh)
+    mesh.vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    mesh.faces = np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 3, 2]])
     mesh.moment_inertia = np.array([[1, 0, 0], [0, 2, 0], [0, 0, 3]])
+    
     ModelLoader._align_model(mesh)
-    # Check if the largest inertia axis is aligned with Z-axis
-    assert mesh.apply_transform.called
+    
+    mesh.apply_transform.assert_called_once()
+    transform_arg = mesh.apply_transform.call_args[0][0]
+    assert transform_arg.shape == (4, 4)
+    assert np.allclose(np.linalg.det(transform_arg[:3, :3]), 1, atol=1e-6)
