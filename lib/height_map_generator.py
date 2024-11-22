@@ -137,7 +137,7 @@ class HeightMapGenerator:
                 part = height_map[start_y:end_y, start_x:end_x]
                 part_path = f"{base_name}_part_{i}_{j}{ext}"
                 
-                HeightMapGenerator.save_height_map(part_path, part, bit_depth, is_part=True)
+                HeightMapGenerator.save_height_map(part, part_path, bit_depth, is_part=True)
 
     @staticmethod
     def _get_optimal_grid(split: int, height: int, width: int) -> Tuple[int, int]:
