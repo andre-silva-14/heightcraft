@@ -43,13 +43,13 @@ def test_generate_invalid_bit_depth(sample_mesh):
 def test_save_height_map(tmp_path):
     height_map = np.random.randint(0, 65536, size=(100, 100), dtype=np.uint16)
     output_path = tmp_path / "test_height_map.png"
-    HeightMapGenerator.save_height_map(height_map, str(output_path))
+    HeightMapGenerator.save_height_map(height_map, str(output_path), 16)
     assert output_path.exists()
 
 def test_save_split_height_maps(tmp_path):
     height_map = np.random.randint(0, 65536, size=(100, 100), dtype=np.uint16)
     output_path = tmp_path / "test_height_map.png"
-    HeightMapGenerator.save_height_map(height_map, str(output_path), split=4)
+    HeightMapGenerator.save_height_map(height_map, str(output_path), 16, split=4)
     
     assert (tmp_path / "test_height_map_part_0_0.png").exists()
     assert (tmp_path / "test_height_map_part_0_1.png").exists()

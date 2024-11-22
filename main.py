@@ -100,7 +100,7 @@ def main():
                 height_map = upscaler.upscale(height_map, args.upscale_factor)
                 logging.info("Upscaling completed.")
             
-            HeightMapGenerator.save_height_map(height_map, args.output_path, args.split)
+            HeightMapGenerator.save_height_map(height_map, args.output_path, args.bit_depth, args.split)
     except Exception as e:
         logging.error(f"Error: {e}")
         raise

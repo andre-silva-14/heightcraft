@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 import logging
 from typing import Tuple, Union
 import trimesh
@@ -71,29 +72,51 @@ class HeightMapGenerator:
         return height_map
 
     @staticmethod
-    def save_height_map(height_map: np.ndarray, output_path: str, split: int = 1) -> None:
+    def save_height_map(height_map: np.ndarray, output_path: str, bit_depth: int, split: int = 1, is_part: bool = False) -> None:
         """
         Saves the generated height map to the specified output path.
         
         Args:
             height_map (np.ndarray): The generated height map.
             output_path (str): Path to save the generated height map.
+            bit_depth (int): The bit-depth used for the generated height map.
             split (int): Number of files to split the output into (must form a grid).
+            is_part (bool): Whether the saved heightmap is parcial or full
         """
         if split == 1:
-            plt.imsave(output_path, height_map, cmap="gray")
-            logging.info(f"Height map saved to {output_path}")
+            file_extension = Path(output_path).suffix
+            output_format = file_extension[1:].lower()
+
+            if bit_depth == 16 and output_format in ['jpg', 'jpeg']:
+                # Re-Normalize the height map to the range [0, 1]
+                logging.warning(f"The choosen output format {output_format} does not support 16 bit-depth. Falling back to 8 bit-depth.")
+                normalized_map = (height_map - np.min(height_map)) / (np.max(height_map) - np.min(height_map))
+                height_map = (normalized_map * 255).astype(np.uint8)
+
+            # Save the image
+            if output_format in ['png', 'tiff', 'tif', 'jpg', 'jpeg']:
+                plt.imsave(output_path, height_map, cmap="gray", format=output_format)
+            else:
+                # Default to PNG if the format is not recognized
+                logging.warning(f"The choosen output format {output_format} is not supported. Falling back to PNG.")
+                plt.imsave(output_path, height_map, cmap="gray", format='png')
+            
+            if is_part:
+                logging.info(f"Height map part saved to {output_path}")
+            else:
+                logging.info(f"Height map saved to {output_path}")
         else:
-            HeightMapGenerator._save_split_height_maps(height_map, output_path, split)
+            HeightMapGenerator._save_split_height_maps(height_map, output_path, bit_depth, split)
 
     @staticmethod
-    def _save_split_height_maps(height_map: np.ndarray, output_path: str, split: int) -> None:
+    def _save_split_height_maps(height_map: np.ndarray, output_path: str, bit_depth: int, split: int) -> None:
         """
         Splits the height map into a grid and saves each part as a separate file.
         
         Args:
             height_map (np.ndarray): The generated height map.
             output_path (str): Base path for saving the split height maps.
+            bit_depth (int): The bit-depth used for the generated height map.
             split (int): Number of files to split the output into.
         """
         height, width = height_map.shape
@@ -114,8 +137,7 @@ class HeightMapGenerator:
                 part = height_map[start_y:end_y, start_x:end_x]
                 part_path = f"{base_name}_part_{i}_{j}{ext}"
                 
-                plt.imsave(part_path, part, cmap="gray")
-                logging.info(f"Height map part saved to {part_path}")
+                HeightMapGenerator.save_height_map(part_path, part, bit_depth, is_part=True)
 
     @staticmethod
     def _get_optimal_grid(split: int, height: int, width: int) -> Tuple[int, int]:
