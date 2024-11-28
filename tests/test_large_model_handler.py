@@ -48,7 +48,7 @@ def test_sample_points_gpu(mock_trimesh_load):
     handler = LargeModelHandler('test_model.stl')
     handler.load_model_info()
     num_samples = 1000
-    points = handler.sample_points_gpu(num_samples)
+    points = handler._sample_points_gpu(num_samples)
     assert points.shape == (num_samples, 3)
     assert np.all(points >= 0) and np.all(points <= 1)
 
@@ -57,6 +57,6 @@ def test_sample_points_cpu(mock_trimesh_load):
     handler.load_model_info()
     num_samples = 1000
     with patch('trimesh.sample.sample_surface_even', return_value=np.random.rand(num_samples, 3)):
-        points = handler.sample_points_cpu(num_samples)
+        points = handler._sample_points_cpu(num_samples)
     assert points.shape == (num_samples, 3)
     assert np.all(points >= 0) and np.all(points <= 1)
