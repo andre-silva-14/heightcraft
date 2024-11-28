@@ -1,8 +1,10 @@
-import tensorflow as tf
-import numpy as np
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D
 import logging
+
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.layers import Conv2D
+from tensorflow.keras.models import Sequential
+
 
 class HeightMapUpscaler:
     def __init__(self):
@@ -10,10 +12,18 @@ class HeightMapUpscaler:
 
     def _build_srcnn_model(self):
         model = Sequential()
-        model.add(Conv2D(64, kernel_size=(9, 9), activation='relu', padding='same', input_shape=(None, None, 1)))
-        model.add(Conv2D(32, kernel_size=(1, 1), activation='relu', padding='same'))
-        model.add(Conv2D(1, kernel_size=(5, 5), activation='linear', padding='same'))
-        model.compile(optimizer='adam', loss='mse')
+        model.add(
+            Conv2D(
+                64,
+                kernel_size=(9, 9),
+                activation="relu",
+                padding="same",
+                input_shape=(None, None, 1),
+            )
+        )
+        model.add(Conv2D(32, kernel_size=(1, 1), activation="relu", padding="same"))
+        model.add(Conv2D(1, kernel_size=(5, 5), activation="linear", padding="same"))
+        model.compile(optimizer="adam", loss="mse")
         return model
 
     def train(self, low_res_maps, high_res_maps, epochs=100, batch_size=32):
@@ -21,7 +31,13 @@ class HeightMapUpscaler:
         Deprecated function. No longer in use.
         """
         logging.info("Training the upscaling model...")
-        self.model.fit(low_res_maps, high_res_maps, epochs=epochs, batch_size=batch_size, validation_split=0.1)
+        self.model.fit(
+            low_res_maps,
+            high_res_maps,
+            epochs=epochs,
+            batch_size=batch_size,
+            validation_split=0.1,
+        )
         logging.info("Training completed.")
 
     def upscale(self, height_map: np.ndarray, scale_factor: int = 2) -> np.ndarray:
@@ -42,13 +58,17 @@ class HeightMapUpscaler:
         original_max = np.max(height_map)
 
         # Normalize the height map to [0, 1] range
-        height_map_normalized = (height_map - original_min) / (original_max - original_min)
+        height_map_normalized = (height_map - original_min) / (
+            original_max - original_min
+        )
 
         # Resize the image using bicubic interpolation
         height, width = height_map_normalized.shape
-        resized = tf.image.resize(height_map_normalized[..., np.newaxis], 
-                                  (height * scale_factor, width * scale_factor), 
-                                  method='bicubic')
+        resized = tf.image.resize(
+            height_map_normalized[..., np.newaxis],
+            (height * scale_factor, width * scale_factor),
+            method="bicubic",
+        )
 
         # Apply the SRCNN model for enhancement
         enhanced = self.model.predict(resized)
@@ -61,6 +81,7 @@ class HeightMapUpscaler:
 
         logging.info("Upscaling completed.")
         return result.astype(height_map.dtype)
+
 
 def load_pretrained_model(model_path: str) -> HeightMapUpscaler:
     """
@@ -77,5 +98,7 @@ def load_pretrained_model(model_path: str) -> HeightMapUpscaler:
         upscaler.model.load_weights(model_path)
         logging.info(f"Loaded pretrained model from {model_path}")
     else:
-        logging.warning("No pretrained model found. Using untrained model for basic upscaling.")
+        logging.warning(
+            "No pretrained model found. Using untrained model for basic upscaling."
+        )
     return upscaler

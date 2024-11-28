@@ -66,10 +66,10 @@ Use GPU acceleration:
 python main.py path/to/model.obj --use_gpu
 ```
 
-Adjust sampling density (Default: 10000):
+Adjust sampling density (Default: 100000):
 
 ```shellscript
-python main.py path/to/model.obj --num_samples 20000
+python main.py path/to/model.obj --num_samples 200000
 ```
 
 Set CPU thread count (Default: 4):
@@ -116,7 +116,7 @@ python main.py model.obj \
   --output_path detailed_map.png \
   --max_resolution 1024 \
   --use_gpu \
-  --num_samples 50000 \
+  --num_samples 1000000 \
   --upscale \
   --pretrained_model path/to/model.h5 \
   --split 4

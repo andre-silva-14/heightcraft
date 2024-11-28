@@ -48,6 +48,8 @@ class ModelLoader:
             meshes = []
             for name, geometry in scene.geometry.items():
                 if isinstance(geometry, trimesh.Trimesh):
+                    geometry_transformation = scene.graph[name][0]
+                    geometry.apply_transform(geometry_transformation)
                     meshes.append(geometry)
             if not meshes:
                 raise ValueError("No valid meshes found in the scene")
@@ -76,19 +78,37 @@ class ModelLoader:
     @staticmethod
     def _align_model(mesh: trimesh.Trimesh) -> None:
         """Aligns the model so that its largest inertia axis is aligned with Z-axis."""
-        logging.info("Aligning the model using principal inertia axes...")
+        logging.info("Aligning the model for top-view orthographic projection...")
         try:
             if len(mesh.vertices) > 0 and len(mesh.faces) > 0:
-                inertia = mesh.moment_inertia
-                if np.any(inertia):
-                    _, rotation = np.linalg.eigh(inertia)
+                extents = mesh.bounding_box.extents
+                depth_index = np.argmin(extents)
+
+                if depth_index != 2:
+                    # Rotation matrix that swaps axes correctly without flipping orientation
                     rotation_matrix = np.eye(4)
-                    rotation_matrix[:3, :3] = rotation.T
+
+                    # Swap X (0) and Z (2) axes if the smallest axis is X
+                    if depth_index == 0:
+                        rotation_matrix[0, 0] = 0
+                        rotation_matrix[2, 2] = 0
+                        rotation_matrix[0, 2] = 1
+                        rotation_matrix[2, 0] = 1
+
+                    # Swap Y (1) and Z (2) axes if the smallest axis is Y
+                    elif depth_index == 1:
+                        rotation_matrix[1, 1] = 0
+                        rotation_matrix[2, 2] = 0
+                        rotation_matrix[1, 2] = 1
+                        rotation_matrix[2, 1] = 1
+
+                    # Apply the rotation matrix to the model
                     mesh.apply_transform(rotation_matrix)
+
                     logging.info("Model aligned successfully.")
                 else:
-                    logging.warning("Inertia tensor is zero. Cannot align the model.")
+                    logging.warning("Model already aligned, no re-alignment required.")
             else:
                 logging.warning("Not enough vertices or faces to align the model.")
         except Exception as e:
-            raise RuntimeError(f"Failed to calculate principal inertia axes: {e}")
+            raise RuntimeError(f"Failed to align the model: {e}")

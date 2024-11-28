@@ -1,6 +1,8 @@
-import torch
 import logging
 from contextlib import contextmanager
+
+import torch
+
 
 class ResourceManager:
     def __init__(self):
@@ -8,7 +10,7 @@ class ResourceManager:
 
     def allocate_gpu_tensor(self, *args, **kwargs):
         """Allocate a GPU tensor and keep track of it."""
-        tensor = torch.tensor(*args, **kwargs, device='cuda')
+        tensor = torch.tensor(*args, **kwargs, device="cuda")
         self.gpu_tensors.append(tensor)
         return tensor
 
@@ -32,5 +34,5 @@ class ResourceManager:
         """Destructor to ensure cleanup if the object is deleted."""
         self.clear_gpu_memory()
 
-resource_manager = ResourceManager()
 
+resource_manager = ResourceManager()
