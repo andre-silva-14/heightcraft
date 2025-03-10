@@ -61,7 +61,11 @@ class PointSampler:
                 vertices[faces[:, 1]],
                 vertices[faces[:, 2]],
             )
-            face_areas = 0.5 * torch.norm(torch.cross(v1 - v0, v2 - v0), dim=1)
+            face_areas = 0.5 * torch.norm(torch.linalg.cross(v1 - v0, v2 - v0, dim=1), dim=1)
+            
+            # Handle case where some face areas might be close to zero
+            epsilon = 1e-10
+            face_areas = torch.clamp(face_areas, min=epsilon)
             face_probs = face_areas / torch.sum(face_areas)
 
             face_indices = torch.multinomial(face_probs, num_samples, replacement=True)

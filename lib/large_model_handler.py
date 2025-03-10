@@ -485,57 +485,98 @@ class LargeModelHandler:
         import torch
 
         samples = []
-        batch_size = min(self.chunk_size, num_samples)
+        # Calculate approximate faces per sample based on model complexity
+        approx_faces_per_sample = max(1, min(10, self.total_faces // num_samples))
+        # Determine batch size that will give us enough coverage of the model
+        batch_size = min(self.chunk_size, max(num_samples // 10, self.total_faces // 100))
+        
+        logging.info(f"Sampling points on GPU with batch size: {batch_size}, approx faces per sample: {approx_faces_per_sample}")
+        
+        # Track how many samples we've collected
+        total_samples = 0
 
         with resource_manager.gpu_session():
-            for i in range(0, num_samples, batch_size):
-                current_batch = min(batch_size, num_samples - i)
-                face_chunk = self._get_face_chunk(current_batch)
-
+            # Process faces in chunks to cover the entire model
+            face_offset = 0
+            while total_samples < num_samples:
+                # Get next chunk of faces, ensuring we cycle through all faces
+                face_chunk_size = min(batch_size, self.total_faces - face_offset)
+                if face_chunk_size <= 0:
+                    # If we've gone through all faces, start again from the beginning
+                    face_offset = 0
+                    face_chunk_size = min(batch_size, self.total_faces)
+                
+                # Get the correct face chunk with proper offset
+                face_chunk = self.concatenated_mesh.faces[face_offset:face_offset+face_chunk_size]
+                face_offset = (face_offset + face_chunk_size) % self.total_faces
+                
                 # Process batch on GPU
                 batch_samples = self._process_gpu_batch(face_chunk)
                 samples.append(batch_samples.cpu().numpy())
-
+                total_samples += len(batch_samples)
+                
+                # Log progress
+                if len(samples) % 10 == 0:
+                    logging.info(f"Sampled {total_samples}/{num_samples} points")
+                
                 # Clear GPU memory after each batch
                 torch.cuda.empty_cache()
 
-        return np.vstack(samples)
-
-    def _get_face_chunk(self, size: int) -> np.ndarray:
-        """Get a chunk of faces for sampling."""
-        if self.concatenated_mesh is None:
-            raise RuntimeError("Model not loaded")
-        return self.concatenated_mesh.faces[:size]
+        # Combine all samples
+        result = np.vstack(samples)
+        
+        # Ensure we have exactly num_samples
+        if len(result) > num_samples:
+            # Randomly select exactly num_samples
+            indices = np.random.choice(len(result), num_samples, replace=False)
+            result = result[indices]
+        elif len(result) < num_samples:
+            # Add duplicates if needed
+            additional = num_samples - len(result)
+            indices = np.random.choice(len(result), additional, replace=True)
+            additional_samples = result[indices]
+            result = np.vstack([result, additional_samples])
+        
+        logging.info(f"Completed GPU sampling with {len(result)} points")
+        return result
 
     def _process_gpu_batch(self, faces: np.ndarray) -> TorchTensor:
         """Process a batch of faces on the GPU."""
         import torch
 
+        # Ensure vertices are properly loaded to GPU with correct memory management
         vertices = resource_manager.allocate_gpu_tensor(
             self.concatenated_mesh.vertices, dtype=torch.float32
         )
         faces = resource_manager.allocate_gpu_tensor(faces, dtype=torch.long)
 
-        # Compute face areas
+        # Compute face areas - fixed with explicitly specifying dim parameter
         v0, v1, v2 = (
             vertices[faces[:, 0]],
             vertices[faces[:, 1]],
             vertices[faces[:, 2]],
         )
-        face_areas = 0.5 * torch.norm(torch.cross(v1 - v0, v2 - v0), dim=1)
+        face_areas = 0.5 * torch.norm(torch.linalg.cross(v1 - v0, v2 - v0, dim=1), dim=1)
+        
+        # Handle case where some face areas might be close to zero
+        epsilon = 1e-10
+        face_areas = torch.clamp(face_areas, min=epsilon)
         face_probs = face_areas / torch.sum(face_areas)
 
-        # Sample faces
+        # Sample faces, ensuring we have valid indices
         face_indices = torch.multinomial(face_probs, len(faces), replacement=True)
-        r1, r2 = torch.sqrt(torch.rand(len(faces), device="cuda")), torch.rand(
-            len(faces), device="cuda"
-        )
+        r1 = torch.sqrt(torch.rand(len(faces), device="cuda"))
+        r2 = torch.rand(len(faces), device="cuda")
 
-        # Generate points
+        # Generate points with proper barycentric coordinates
+        sampled_v0 = vertices[faces[face_indices, 0]]
+        sampled_v1 = vertices[faces[face_indices, 1]]
+        sampled_v2 = vertices[faces[face_indices, 2]]
+        
         return (
-            (1 - r1.unsqueeze(1)) * vertices[faces[face_indices, 0]]
-            + (r1 * (1 - r2)).unsqueeze(1) * vertices[faces[face_indices, 1]]
-            + (r1 * r2).unsqueeze(1) * vertices[faces[face_indices, 2]]
+            (1 - r1.unsqueeze(1)) * sampled_v0
+            + (r1 * (1 - r2)).unsqueeze(1) * sampled_v1
+            + (r1 * r2).unsqueeze(1) * sampled_v2
         )
 
     def _update_model_stats(self) -> None:
@@ -743,3 +784,10 @@ class LargeModelHandler:
             logging.error(f"Error updating scene graph: {e}")
             # If updating the scene graph fails, revert to direct mesh modification after processing
             logging.info("Falling back to post-processing alignment")
+
+    def _get_face_chunk(self, size: int) -> np.ndarray:
+        """Get a chunk of faces for sampling - legacy method kept for compatibility."""
+        if self.concatenated_mesh is None:
+            raise RuntimeError("Model not loaded")
+        logging.warning("Using deprecated _get_face_chunk method, consider updating code to use new sampling approach")
+        return self.concatenated_mesh.faces[:size]
