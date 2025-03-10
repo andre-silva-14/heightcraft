@@ -1,10 +1,14 @@
 #! /usr/bin/env python3
 import argparse
+import gc
 import logging
 import math
+import os
 import sys
 
-from lib.height_map_generator import HeightMapGenerator
+import numpy as np
+
+from lib.height_map_generator import HeightMapConfig, HeightMapGenerator
 from lib.resolution_calculator import ResolutionCalculator
 
 
@@ -31,22 +35,20 @@ def validate_split(value):
 
 
 def parse_arguments():
-    """Parses and validates command-line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Generate a height map from a 3D model."
-    )
-    parser.add_argument("file_path", type=str, help="Path to the input 3D model file.")
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Generate height maps from 3D models.")
+    parser.add_argument("file_path", type=str, help="Path to the 3D model file.")
     parser.add_argument(
         "--output_path",
         type=str,
         default="height_map.png",
-        help="Path to save the generated height map. Default: height_map.png",
+        help="Output path for the height map. Default: height_map.png",
     )
     parser.add_argument(
         "--max_resolution",
         type=int,
         default=256,
-        help="Maximum resolution for the longest dimension. Default: 256.",
+        help="Maximum resolution for the height map. Default: 256",
     )
     parser.add_argument(
         "--use_gpu",
@@ -57,7 +59,7 @@ def parse_arguments():
         "--num_samples",
         type=int,
         default=100000,
-        help="Number of points to sample from the 3D model surface. Default: 10,000.",
+        help="Number of points to sample from the 3D model surface. Default: 100,000.",
     )
     parser.add_argument(
         "--num_threads",
@@ -78,6 +80,11 @@ def parse_arguments():
         help="Use memory-efficient techniques for large models.",
     )
     parser.add_argument(
+        "--extreme_memory_saving",
+        action="store_true",
+        help="Use extreme memory-saving techniques for very large models. May be slower.",
+    )
+    parser.add_argument(
         "--chunk_size",
         type=int,
         default=1000000,
@@ -92,23 +99,37 @@ def parse_arguments():
     parser.add_argument(
         "--upscale",
         action="store_true",
-        help="Enable upscaling of the generated height map.",
+        help="Enable AI upscaling of the height map.",
     )
     parser.add_argument(
         "--upscale_factor",
         type=int,
         default=2,
+        choices=[2, 3, 4],
         help="Factor by which to upscale the height map. Default: 2.",
     )
     parser.add_argument(
         "--pretrained_model",
         type=str,
-        help="Path to pretrained upscaling model (optional).",
+        help="Path to a pretrained upscaling model.",
     )
-
-    args = parser.parse_args()
-    validate_arguments(args)
-    return args
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        help="Directory to use for caching. Default: .cache in current directory.",
+    )
+    parser.add_argument(
+        "--max_memory",
+        type=float,
+        default=0.8,
+        help="Maximum memory usage as a fraction of available memory. Default: 0.8 (80%).",
+    )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Run tests instead of generating a height map.",
+    )
+    return parser.parse_args()
 
 
 def validate_arguments(args):
@@ -123,6 +144,8 @@ def validate_arguments(args):
         raise ValueError("Chunk size must be a positive integer.")
     if args.upscale and args.upscale_factor < 2:
         raise ValueError("Upscale factor must be at least 2.")
+    if not 0 < args.max_memory <= 1:
+        raise ValueError("Maximum memory must be between 0 and 1.")
 
 
 def main():
@@ -131,23 +154,107 @@ def main():
     args = parse_arguments()
 
     try:
+        # Calculate target resolution
         if args.large_model:
             from lib.large_model_handler import LargeModelHandler
 
-            handler = LargeModelHandler(args.file_path, args.chunk_size)
-            handler.load_model_info()
-            min_coords, max_coords = handler.calculate_bounding_box()
-            target_resolution = ResolutionCalculator.calculate_from_bounds(
-                min_coords, max_coords, args.max_resolution
-            )
+            # Adjust chunk size if extreme memory saving is enabled
+            chunk_size = args.chunk_size
+            if args.extreme_memory_saving:
+                chunk_size = min(chunk_size, 100000)
+                logging.info(
+                    f"Extreme memory saving enabled, using chunk size: {chunk_size}"
+                )
 
-            sampled_points = handler.sample_points(args.num_samples, args.use_gpu)
+            with LargeModelHandler(
+                args.file_path, chunk_size, max_memory=args.max_memory
+            ) as handler:
+                handler.load_model_info()
+                min_coords, max_coords = handler.calculate_bounding_box()
+                target_resolution = ResolutionCalculator.calculate_from_bounds(
+                    min_coords, max_coords, args.max_resolution
+                )
 
-            height_map = HeightMapGenerator.generate_from_points(
-                sampled_points,
-                target_resolution=target_resolution,
-                bit_depth=args.bit_depth,
-            )
+                # Create height map configuration
+                config = HeightMapConfig(
+                    target_resolution=target_resolution,
+                    bit_depth=args.bit_depth,
+                    num_samples=args.num_samples,
+                    num_threads=args.num_threads,
+                    use_gpu=args.use_gpu,
+                    split=args.split,
+                    cache_dir=args.cache_dir,
+                    max_memory=args.max_memory,
+                )
+
+                # Generate height map
+                with HeightMapGenerator(config) as generator:
+                    # For GLTF scenes, we need to sample points directly
+                    if handler.is_scene:
+                        logging.info("Processing GLTF scene...")
+
+                        # For extreme memory saving, process in batches
+                        if args.extreme_memory_saving:
+                            logging.info(
+                                "Using extreme memory saving for point sampling"
+                            )
+                            # Reduce number of samples if needed
+                            num_samples = min(args.num_samples, 10000000)
+                            if num_samples < args.num_samples:
+                                logging.warning(
+                                    f"Reducing number of samples to {num_samples} for memory efficiency"
+                                )
+
+                            # Sample points in batches
+                            batch_size = min(1000000, num_samples // 10)
+                            num_batches = max(1, num_samples // batch_size)
+                            logging.info(f"Sampling points in {num_batches} batches")
+
+                            all_points = []
+                            for i in range(num_batches):
+                                logging.info(f"Sampling batch {i+1}/{num_batches}")
+                                batch_points = handler.sample_points(
+                                    batch_size, args.use_gpu
+                                )
+                                all_points.append(batch_points)
+                                # Force garbage collection
+                                gc.collect()
+
+                            # Combine batches
+                            points = np.vstack(all_points)
+                            # If we need more points, duplicate some
+                            if len(points) < num_samples:
+                                additional = num_samples - len(points)
+                                indices = np.random.choice(
+                                    len(points), additional, replace=True
+                                )
+                                points = np.vstack([points, points[indices]])
+                        else:
+                            # Normal sampling
+                            points = handler.sample_points(
+                                args.num_samples, args.use_gpu
+                            )
+
+                        height_map = generator._generate_from_points(points)
+                    else:
+                        height_map = generator.generate(handler.concatenated_mesh)
+
+                    if args.upscale:
+                        from lib.upscaler import (
+                            HeightMapUpscaler,
+                            load_pretrained_model,
+                        )
+
+                        logging.info("Upscaling the generated height map...")
+                        upscaler = (
+                            load_pretrained_model(args.pretrained_model)
+                            if args.pretrained_model
+                            else HeightMapUpscaler()
+                        )
+                        height_map = upscaler.upscale(height_map, args.upscale_factor)
+                        logging.info("Upscaling completed.")
+
+                    generator.save_height_map(height_map, args.output_path)
         else:
             from lib.model_loader import ModelLoader
 
@@ -155,30 +262,37 @@ def main():
             target_resolution = ResolutionCalculator.calculate(
                 mesh, args.max_resolution
             )
-            height_map = HeightMapGenerator.generate(
-                mesh,
+
+            # Create height map configuration
+            config = HeightMapConfig(
                 target_resolution=target_resolution,
-                use_gpu=args.use_gpu,
+                bit_depth=args.bit_depth,
                 num_samples=args.num_samples,
                 num_threads=args.num_threads,
-                bit_depth=args.bit_depth,
+                use_gpu=args.use_gpu,
+                split=args.split,
+                cache_dir=args.cache_dir,
+                max_memory=args.max_memory,
             )
 
-        if args.upscale:
-            from lib.upscaler import HeightMapUpscaler, load_pretrained_model
+            # Generate height map
+            with HeightMapGenerator(config) as generator:
+                height_map = generator.generate(mesh)
 
-            logging.info("Upscaling the generated height map...")
-            upscaler = (
-                load_pretrained_model(args.pretrained_model)
-                if args.pretrained_model
-                else HeightMapUpscaler()
-            )
-            height_map = upscaler.upscale(height_map, args.upscale_factor)
-            logging.info("Upscaling completed.")
+                if args.upscale:
+                    from lib.upscaler import HeightMapUpscaler, load_pretrained_model
 
-        HeightMapGenerator.save_height_map(
-            height_map, args.output_path, args.bit_depth, args.split
-        )
+                    logging.info("Upscaling the generated height map...")
+                    upscaler = (
+                        load_pretrained_model(args.pretrained_model)
+                        if args.pretrained_model
+                        else HeightMapUpscaler()
+                    )
+                    height_map = upscaler.upscale(height_map, args.upscale_factor)
+                    logging.info("Upscaling completed.")
+
+                generator.save_height_map(height_map, args.output_path)
+
     except Exception as e:
         logging.error(f"Error: {e}")
         raise

@@ -11,6 +11,9 @@ Transform your 3D models into super detailed height maps with Heightcraft - a po
 - 🔍 AI-powered upscaling for enhanced detail
 - 💾 Memory-efficient processing for large models
 - 🚀 Multi-threaded CPU processing
+- 🔄 Intelligent caching system for faster repeated processing
+- 📊 Memory usage monitoring and optimization
+- 🛡️ Robust error handling and resource cleanup
 
 ## 🔧 Supported 3D Model Formats
 
@@ -99,6 +102,20 @@ Use a pretrained upscaling model:
 python main.py path/to/model.obj --upscale --pretrained_model path/to/model.h5
 ```
 
+### Memory Management
+
+Control memory usage (Default: 80% of available memory):
+
+```shellscript
+python main.py path/to/model.obj --max_memory 0.6
+```
+
+Specify cache directory for faster repeated processing (default: `.cache` in current directory):
+
+```shellscript
+python main.py path/to/model.obj --cache_dir ./cache
+```
+
 ### Large Model Processing
 
 Handle large models efficiently (default `chunk_size` is 1000000):
@@ -119,12 +136,28 @@ python main.py model.obj \
   --num_samples 1000000 \
   --upscale \
   --pretrained_model path/to/model.h5 \
-  --split 4
+  --split 4 \
+  --max_memory 0.7 \
+  --cache_dir ./cache
+```
+
+## 🧪 Testing
+
+Run the test suite:
+
+```shellscript
+pytest tests
 ```
 
 ## 🤝 Contributing
 
-Contributions are welcome! Feel free to submit issues and pull requests.
+Contributions are welcome! Please feel free to submit issues and pull requests. When contributing:
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## 📝 License
 
