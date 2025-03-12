@@ -20,6 +20,9 @@ dev = [
     "ruff>=0.1.0",
 ]
 
+[project.dependency-groups]
+dev = { dependencies = ["pytest", "ruff"] }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
