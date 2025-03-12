@@ -25,10 +25,24 @@ Transform your 3D models into super detailed height maps with Heightcraft - a po
 
 ## 📦 Installation
 
-Ensure you have Python 3.x installed, then install the required packages:
+This project uses [uv](https://github.com/astral-sh/uv) for dependency management. Here's how to get started:
 
+1. Install uv using pipx (recommended):
 ```bash
-pip install -r requirements.txt
+pipx install uv
+```
+
+2. Create a virtual environment and install dependencies:
+```bash
+uv venv
+source .venv/bin/activate  # On Unix/macOS
+.venv\Scripts\activate     # On Windows
+uv sync
+```
+
+For development setup:
+```bash
+uv sync --group dev
 ```
 
 ## 🚀 Usage
@@ -141,6 +155,21 @@ python main.py model.obj \
   --cache_dir ./cache
 ```
 
+
+## Development
+
+To install development dependencies:
+```bash
+uv pip install -e ".[dev]"
+```
+
+
+Running the legacy code:
+
+```shellscript
+python3 main.py --legacy path/to/model.obj
+```
+
 ## 🧪 Testing
 
 Run the test suite:
@@ -148,6 +177,7 @@ Run the test suite:
 ```shellscript
 pytest tests
 ```
+
 
 ## 🤝 Contributing
 
