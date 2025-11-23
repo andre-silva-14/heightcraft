@@ -6,6 +6,7 @@ tracking, and cleanup of GPU resources.
 """
 
 import logging
+import weakref
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Union
 
@@ -49,7 +50,7 @@ class GPUManager:
         self.tf_available = False
         self.torch_available = False
         self.has_gpu = False
-        self.gpu_tensors = []
+        self.gpu_tensors = weakref.WeakSet()
         
         # Initialize GPU-related resources
         try:
@@ -113,7 +114,7 @@ class GPUManager:
             tensor = torch.tensor(data, device="cuda", dtype=dtype)
             
             # Track tensor for cleanup
-            self.gpu_tensors.append(tensor)
+            self.gpu_tensors.add(tensor)
             
             return tensor
             
@@ -235,7 +236,7 @@ class GPUManager:
             tensor: PyTorch tensor to unregister
         """
         if tensor in self.gpu_tensors:
-            self.gpu_tensors.remove(tensor)
+            self.gpu_tensors.discard(tensor)
 
 # Factory function that gets the instance from ResourceManager
 def get_gpu_manager():

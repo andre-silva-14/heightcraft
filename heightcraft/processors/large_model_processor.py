@@ -16,12 +16,8 @@ import numpy as np
 import trimesh
 
 from heightcraft.core.config import ApplicationConfig, ModelConfig, SamplingConfig
-from heightcraft.core.exceptions import (
-    HeightMapGenerationError,
-    ModelLoadError,
-    ProcessingError,
-    SamplingError,
-)
+from heightcraft.core.config import ApplicationConfig
+from heightcraft.core.exceptions import ProcessingError, SamplingError
 from heightcraft.domain.height_map import HeightMap
 from heightcraft.domain.mesh import Mesh
 from heightcraft.domain.point_cloud import PointCloud
@@ -54,11 +50,11 @@ class LargeModelProcessor(BaseProcessor):
         """
         super().__init__(config)
         
-        # Get services from config
-        self.mesh_service = config.get_service(MeshService)
-        self.model_service = config.get_service(ModelService)
-        self.height_map_service = config.get_service(HeightMapService)
-        self.sampling_service = config.get_service(SamplingService)
+        # Initialize services
+        self.mesh_service = MeshService()
+        self.model_service = ModelService()
+        self.height_map_service = HeightMapService()
+        self.sampling_service = SamplingService(self.sampling_config)
         
         # Initialize cache manager
         self.cache_manager = None
@@ -370,19 +366,90 @@ class LargeModelProcessor(BaseProcessor):
         Raises:
             SamplingError: If point sampling fails
         """
-        # Create a single mesh from all chunks
-        vertices = np.vstack(self.vertex_buffer)
-        faces = np.vstack([chunk["faces"] for chunk in self.chunks])
+        # Calculate total area to distribute samples proportionally
+        total_area = 0.0
+        chunk_areas = []
         
-        # Create mesh
-        mesh = Mesh(trimesh.Trimesh(vertices=vertices, faces=faces))
+        # We need to calculate area for each chunk to distribute samples
+        # This is a bit expensive but necessary for correct sampling density
+        for chunk in self.chunks:
+            # Get vertices for this chunk
+            # chunk["vertices"] is the index in vertex_buffer
+            # chunk["vertex_count"] is the number of arrays in vertex_buffer to use
+            chunk_vertices_arrays = self.vertex_buffer[chunk["vertices"]:chunk["vertices"] + chunk["vertex_count"]]
+            if not chunk_vertices_arrays:
+                chunk_areas.append(0)
+                continue
+                
+            vertices = np.vstack(chunk_vertices_arrays)
+            faces = chunk["faces"]
+            
+            # Create a temporary mesh for area calculation
+            # We use trimesh directly to avoid overhead
+            temp_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+            area = temp_mesh.area
+            chunk_areas.append(area)
+            total_area += area
+            
+            # Explicit cleanup
+            del temp_mesh, vertices, faces
         
-        # Sample points
-        points = self.sampling_service.sample_points(
-            mesh, num_samples, use_gpu, self.sampling_config.num_threads
-        )
+        # Distribute samples
+        samples_per_chunk = []
+        for area in chunk_areas:
+            if total_area > 0:
+                ratio = area / total_area
+                samples_per_chunk.append(max(1, int(num_samples * ratio)))
+            else:
+                samples_per_chunk.append(0)
         
-        return points.points
+        # Adjust total samples
+        current_total = sum(samples_per_chunk)
+        if current_total > 0:
+            if current_total < num_samples:
+                # Add to largest chunk
+                max_idx = samples_per_chunk.index(max(samples_per_chunk))
+                samples_per_chunk[max_idx] += num_samples - current_total
+            elif current_total > num_samples:
+                # Remove from largest chunk
+                max_idx = samples_per_chunk.index(max(samples_per_chunk))
+                samples_per_chunk[max_idx] -= current_total - num_samples
+        
+        # Sample points from each chunk
+        point_clouds = []
+        
+        with ThreadPool(max_workers=self.sampling_config.num_threads) as pool:
+            for i, (chunk, chunk_samples) in enumerate(zip(self.chunks, samples_per_chunk)):
+                if chunk_samples <= 0:
+                    continue
+                
+                # Get vertices for this chunk
+                chunk_vertices_arrays = self.vertex_buffer[chunk["vertices"]:chunk["vertices"] + chunk["vertex_count"]]
+                if not chunk_vertices_arrays:
+                    continue
+                    
+                vertices = np.vstack(chunk_vertices_arrays)
+                faces = chunk["faces"]
+                
+                # Create temporary mesh
+                chunk_mesh = Mesh(trimesh.Trimesh(vertices=vertices, faces=faces))
+                
+                # Sample points
+                chunk_points = self.sampling_service.sample_points(
+                    chunk_mesh, chunk_samples, use_gpu, 
+                    self.sampling_config.num_threads
+                )
+                
+                point_clouds.append(chunk_points)
+                
+                # Explicit cleanup
+                del vertices, faces, chunk_mesh
+        
+        if not point_clouds:
+            return np.array([])
+            
+        # Merge results
+        return PointCloud.merge(point_clouds).points
     
     @profiler.profile()
     def generate_height_map(self) -> np.ndarray:
@@ -605,22 +672,4 @@ class LargeModelProcessor(BaseProcessor):
         except Exception as e:
             raise ProcessingError(f"Failed to calculate bounding box: {str(e)}")
             
-    @profiler.profile()
-    def sample_points(self, mesh: Mesh, num_points: int) -> PointCloud:
-        """
-        Sample points from a mesh.
-        
-        Args:
-            mesh: The mesh to sample points from
-            num_points: Number of points to sample
-            
-        Returns:
-            Point cloud with sampled points
-            
-        Raises:
-            ProcessingError: If points cannot be sampled
-        """
-        try:
-            return self.mesh_service.mesh_to_point_cloud(mesh, num_points)
-        except Exception as e:
-            raise ProcessingError(f"Failed to sample points: {str(e)}") 
+ 

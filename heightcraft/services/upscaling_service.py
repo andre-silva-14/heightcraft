@@ -141,7 +141,11 @@ class UpscalingService:
             # Normalize data to 0-1 range
             original_min = np.min(data)
             original_max = np.max(data)
-            data_normalized = (data - original_min) / (original_max - original_min)
+            
+            if original_max == original_min:
+                data_normalized = np.zeros_like(data)
+            else:
+                data_normalized = (data - original_min) / (original_max - original_min)
             
             # Add batch and channel dimensions
             data_input = data_normalized.reshape(1, *data.shape, 1)

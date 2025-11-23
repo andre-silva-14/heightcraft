@@ -121,58 +121,84 @@ class OutputConfig:
         object.__setattr__(self, 'format', OutputFormat.from_extension(extension))
 
 
+@dataclass
+class TrainingConfig:
+    """Configuration for model training."""
+    enabled: bool = False
+    dataset_path: Optional[str] = None
+    output_model_path: str = "trained_model.h5"
+    epochs: int = 10
+    batch_size: int = 16
+    learning_rate: float = 1e-4
+
+
 @dataclass(frozen=True)
 class ApplicationConfig:
-    """Main application configuration combining all sub-configurations."""
+    """
+    Main application configuration.
     
+    Aggregates all other configuration objects.
+    """
     model_config: ModelConfig
     sampling_config: SamplingConfig
     height_map_config: HeightMapConfig
     output_config: OutputConfig
-    upscale_config: UpscaleConfig = field(default_factory=lambda: UpscaleConfig())
+    upscale_config: UpscaleConfig = field(default_factory=UpscaleConfig)
+    training_config: TrainingConfig = field(default_factory=TrainingConfig)
     
     @classmethod
-    def from_dict(cls, config_dict: Dict) -> "ApplicationConfig":
-        """Create configuration from a dictionary."""
-        # Determine processing mode
-        processing_mode = ProcessingMode.STANDARD
-        if config_dict.get("large_model", False):
-            processing_mode = ProcessingMode.LARGE
+    def from_dict(cls, args: Dict) -> 'ApplicationConfig':
+        """
+        Create configuration from dictionary (e.g., parsed arguments).
         
-        # Create model configuration
+        Args:
+            args: Dictionary of arguments
+            
+        Returns:
+            ApplicationConfig instance
+        """
+        # Model config
         model_config = ModelConfig(
-            file_path=config_dict["file_path"],
-            mode=processing_mode,
-            chunk_size=config_dict.get("chunk_size", 1000000),
-            max_memory=config_dict.get("max_memory", 0.8),
-            cache_dir=config_dict.get("cache_dir"),
-            num_threads=config_dict.get("num_threads", 4)
+            file_path=args.get('file_path'),
+            chunk_size=args.get('chunk_size', 1000),
+            cache_dir=args.get('cache_dir')
         )
         
-        # Create sampling configuration
+        # Sampling config
         sampling_config = SamplingConfig(
-            num_samples=config_dict.get("num_samples", 100000),
-            use_gpu=config_dict.get("use_gpu", False),
-            num_threads=config_dict.get("num_threads", 4)
+            num_samples=args.get('num_samples', 1000000),
+            num_threads=args.get('threads', 4),
+            use_gpu=not args.get('no_gpu', False)
         )
         
-        # Create height map configuration
+        # Height map config
         height_map_config = HeightMapConfig(
-            max_resolution=config_dict.get("max_resolution", 256),
-            bit_depth=config_dict.get("bit_depth", 16),
-            split=config_dict.get("split", 1)
+            max_resolution=args.get('resolution', 1024),
+            bit_depth=args.get('bit_depth', 8),
+            split=args.get('split', 1)
         )
         
-        # Create output configuration
+        # Output config
         output_config = OutputConfig(
-            output_path=config_dict.get("output_path", "height_map.png")
+            output_path=args.get('output', 'height_map.png'),
+            format=args.get('format', 'png')
         )
         
-        # Create upscale configuration
+        # Upscale config
         upscale_config = UpscaleConfig(
-            enabled=config_dict.get("upscale", False),
-            upscale_factor=config_dict.get("upscale_factor", 2),
-            pretrained_model=config_dict.get("pretrained_model")
+            enabled=args.get('upscale', False),
+            upscale_factor=args.get('upscale_factor', 2),
+            pretrained_model=args.get('pretrained_model')
+        )
+        
+        # Training config
+        training_config = TrainingConfig(
+            enabled=args.get('train', False),
+            dataset_path=args.get('dataset_path'),
+            output_model_path=args.get('pretrained_model') or "trained_model.h5",
+            epochs=args.get('epochs', 10),
+            batch_size=args.get('batch_size', 16),
+            learning_rate=args.get('learning_rate', 1e-4)
         )
         
         return cls(
@@ -180,7 +206,8 @@ class ApplicationConfig:
             sampling_config=sampling_config,
             height_map_config=height_map_config,
             output_config=output_config,
-            upscale_config=upscale_config
+            upscale_config=upscale_config,
+            training_config=training_config
         )
         
     @classmethod

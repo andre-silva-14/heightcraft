@@ -110,11 +110,36 @@ Enable AI upscaling:
 python main.py path/to/model.obj --upscale --upscale_factor 2
 ```
 
-Use a pretrained upscaling model:
+Use a pretrained upscaling model (without one, bicubic interpolation is used):
 
 ```shellscript
 python main.py path/to/model.obj --upscale --pretrained_model path/to/model.h5
 ```
+
+### Training a Custom Model
+
+You can train your own upscaling model using a dataset of high-resolution height maps (images).
+
+```shellscript
+python main.py --train --dataset_path path/to/images_folder --epochs 50 --batch_size 16 --pretrained_model my_model.h5
+```
+
+Arguments:
+*   `--dataset_path`: Path to a folder containing high-res images (PNG, JPG, TIF).
+*   `--pretrained_model`: Path to save the trained model (default: trained_model.h5).
+
+**Hyperparameters:**
+
+*   `--epochs` (Default: 10): How many times the AI sees the entire dataset.
+    *   *Effect:* Higher values (e.g., 50-100) generally lead to better quality but take longer. If set too high, the model might "memorize" the training data (overfitting) and perform poorly on new maps.
+*   `--batch_size` (Default: 16): How many images are processed at once.
+    *   *Effect:* Larger batches (32, 64) speed up training but require more GPU memory. Smaller batches (4, 8) are slower but offer more stable updates.
+*   `--learning_rate` (Default: 0.0001): How fast the AI adapts its internal weights.
+    *   *Effect:* A higher rate (e.g., 0.001) learns faster but might miss the optimal solution (unstable). A lower rate (e.g., 0.00001) is more precise but takes much longer to converge.
+
+**Example Tuning:**
+*   *For quick testing:* `--epochs 5 --batch_size 8`
+*   *For high quality:* `--epochs 100 --learning_rate 0.00005`
 
 ### Memory Management
 

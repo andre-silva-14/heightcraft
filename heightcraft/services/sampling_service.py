@@ -37,6 +37,35 @@ class SamplingService:
         self.logger = logging.getLogger(self.__class__.__name__)
     
     @profiler.profile()
+    def sample_points(self, mesh: Mesh, num_samples: int, use_gpu: bool, num_threads: int = 1) -> PointCloud:
+        """
+        Sample points from a mesh with explicit parameters.
+        
+        Args:
+            mesh: The mesh to sample from
+            num_samples: Number of points to sample
+            use_gpu: Whether to use GPU
+            num_threads: Number of threads for CPU sampling
+            
+        Returns:
+            PointCloud containing sampled points
+            
+        Raises:
+            SamplingError: If sampling fails
+        """
+        try:
+            if use_gpu and gpu_manager.has_gpu:
+                points = self._sample_points_gpu(mesh, num_samples)
+            elif num_threads > 1:
+                points = self.sample_with_threads(mesh, num_samples, num_threads)
+            else:
+                points = self._sample_points_cpu(mesh, num_samples)
+                
+            return PointCloud(points)
+        except Exception as e:
+            raise SamplingError(f"Failed to sample points: {str(e)}")
+
+    @profiler.profile()
     def sample_from_mesh(self, mesh: Mesh) -> np.ndarray:
         """
         Sample points from a mesh.

@@ -17,6 +17,7 @@ from heightcraft.core.config import ApplicationConfig
 from heightcraft.core.exceptions import HeightcraftError
 from heightcraft.processors import create_processor
 from heightcraft.core.logging import setup_logging
+from heightcraft.services.training_service import TrainingService
 
 
 class Command(abc.ABC):
@@ -110,6 +111,57 @@ class RunTestsCommand(Command):
             self.logger.exception(f"Error running tests: {e}")
             return 2
 
+class TrainUpscalerCommand(Command):
+    """Command to train an upscaling model."""
+    
+    def __init__(self, args: Dict):
+        """
+        Initialize the command.
+        
+        Args:
+            args: Command-line arguments
+        """
+        self.args = args
+        self.logger = logging.getLogger(self.__class__.__name__)
+    
+    def execute(self) -> int:
+        """
+        Execute the command.
+        
+        Returns:
+            Exit code (0 for success, non-zero for failure)
+        """
+        try:
+            # Validate arguments
+            if not self.args.get("dataset_path"):
+                self.logger.error("Error: --dataset_path is required for training")
+                return 1
+            
+            # Create configuration
+            config = ApplicationConfig.from_dict(self.args)
+            
+            # Create service
+            service = TrainingService(config.upscale_config)
+            
+            # Run training
+            output_path = service.train_model(
+                dataset_path=config.training_config.dataset_path,
+                output_model_path=config.training_config.output_model_path,
+                epochs=config.training_config.epochs,
+                batch_size=config.training_config.batch_size,
+                learning_rate=config.training_config.learning_rate
+            )
+            
+            self.logger.info(f"Model trained successfully: {output_path}")
+            return 0
+            
+        except HeightcraftError as e:
+            self.logger.error(f"Error: {e}")
+            return 1
+        except Exception as e:
+            self.logger.exception(f"Unexpected error: {e}")
+            return 2
+
 
 def create_command(args: Optional[List[str]] = None) -> Command:
     """
@@ -130,6 +182,8 @@ def create_command(args: Optional[List[str]] = None) -> Command:
     # Create command
     if parsed_args.get("test", False):
         return RunTestsCommand()
+    elif parsed_args.get("train", False):
+        return TrainUpscalerCommand(parsed_args)
     else:
         return GenerateHeightMapCommand(parsed_args)
 

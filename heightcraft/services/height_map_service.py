@@ -281,20 +281,19 @@ class HeightMapService:
             # Normalize to [0, 1] for processing
             norm_data = (data - min_val) / (max_val - min_val)
             
-            # Convert to 8-bit for histogram equalization
-            data_8bit = (norm_data * 255).astype(np.uint8)
-            
-            # Calculate the histogram
-            hist, bins = np.histogram(data_8bit.flatten(), 256, [0, 256])
+            # Calculate the histogram with high precision (65536 bins)
+            # This preserves detail for 16-bit height maps
+            hist, bins = np.histogram(norm_data.flatten(), 65536, [0.0, 1.0])
             
             # Calculate the cumulative distribution function
             cdf = hist.cumsum()
             
-            # Normalize the CDF
-            cdf_normalized = cdf * float(norm_data.max()) / cdf[-1]
+            # Normalize the CDF to [0, 1]
+            cdf_normalized = cdf * 1.0 / cdf[-1]
             
-            # Apply the equalization
-            equalized_data = np.interp(data_8bit.flatten(), range(256), cdf_normalized)
+            # Apply the equalization using linear interpolation
+            # We use the upper edges of bins for mapping
+            equalized_data = np.interp(norm_data.flatten(), bins[1:], cdf_normalized)
             
             # Reshape back to original shape
             equalized_data = equalized_data.reshape(data.shape)
