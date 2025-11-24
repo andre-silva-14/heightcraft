@@ -118,7 +118,7 @@ python main.py path/to/model.obj --upscale --pretrained_model path/to/model.h5
 
 ### Training a Custom Model
 
-You can train your own upscaling model using a dataset of high-resolution height maps (images).
+You can train your own upscaling model using a dataset of high-resolution height maps (images, for example from https://tangrams.github.io/heightmapper/).
 
 ```shellscript
 python main.py --train --dataset_path path/to/images_folder --epochs 50 --batch_size 16 --pretrained_model my_model.h5
