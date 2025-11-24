@@ -173,7 +173,7 @@ class ApplicationConfig:
         
         # Height map config
         height_map_config = HeightMapConfig(
-            max_resolution=args.get('resolution', 1024),
+            max_resolution=args.get('max_resolution', 1024),
             bit_depth=args.get('bit_depth', 8),
             split=args.get('split', 1)
         )
