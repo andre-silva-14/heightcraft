@@ -59,7 +59,8 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "file_path", 
         type=str, 
-        help="Path to the 3D model file."
+        nargs='?',
+        help="Path to the 3D model file. Required unless running tests or training."
     )
     
     # Output options
@@ -160,6 +161,37 @@ def create_parser() -> argparse.ArgumentParser:
         help="Path to a pretrained upscaling model.",
     )
     
+    # Training options
+    training_group = parser.add_argument_group("Training Options")
+    training_group.add_argument(
+        "--train",
+        action="store_true",
+        help="Enable training mode.",
+    )
+    training_group.add_argument(
+        "--dataset_path",
+        type=str,
+        help="Path to the dataset directory for training.",
+    )
+    training_group.add_argument(
+        "--epochs",
+        type=int,
+        default=10,
+        help="Number of training epochs.",
+    )
+    training_group.add_argument(
+        "--batch_size",
+        type=int,
+        default=16,
+        help="Batch size for training.",
+    )
+    training_group.add_argument(
+        "--learning_rate",
+        type=float,
+        default=1e-4,
+        help="Learning rate for training.",
+    )
+    
     # Miscellaneous options
     misc_group = parser.add_argument_group("Miscellaneous Options")
     misc_group.add_argument(
@@ -205,6 +237,9 @@ def validate_arguments(args: Dict[str, Any]) -> None:
     Raises:
         ValueError: If validation fails
     """
+    if not args.get("file_path"):
+        raise ValueError("File path is required for height map generation.")
+
     if args["max_resolution"] <= 0:
         raise ValueError("Maximum resolution must be a positive integer.")
     
