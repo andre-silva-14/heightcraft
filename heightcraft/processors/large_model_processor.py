@@ -328,7 +328,10 @@ class LargeModelProcessor(BaseProcessor):
         # Sample points from each chunk
         point_clouds = []
         
-        with ThreadPool(max_workers=self.sampling_config.num_threads) as pool:
+        # If using GPU, process chunks sequentially to avoid OOM
+        max_workers = 1 if use_gpu else self.sampling_config.num_threads
+        
+        with ThreadPool(max_workers=max_workers) as pool:
             for i, (chunk, chunk_samples) in enumerate(zip(self.chunks, samples_per_chunk)):
                 if chunk_samples <= 0:
                     continue
@@ -418,7 +421,10 @@ class LargeModelProcessor(BaseProcessor):
         # Sample points from each chunk
         point_clouds = []
         
-        with ThreadPool(max_workers=self.sampling_config.num_threads) as pool:
+        # If using GPU, process chunks sequentially to avoid OOM
+        max_workers = 1 if use_gpu else self.sampling_config.num_threads
+        
+        with ThreadPool(max_workers=max_workers) as pool:
             for i, (chunk, chunk_samples) in enumerate(zip(self.chunks, samples_per_chunk)):
                 if chunk_samples <= 0:
                     continue

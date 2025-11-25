@@ -168,7 +168,7 @@ class ApplicationConfig:
         sampling_config = SamplingConfig(
             num_samples=args.get('num_samples', 1000000),
             num_threads=args.get('threads', 4),
-            use_gpu=not args.get('no_gpu', False)
+            use_gpu=args.get('use_gpu', False)
         )
         
         # Height map config
