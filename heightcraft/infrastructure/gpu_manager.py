@@ -47,7 +47,6 @@ class GPUManager:
         import logging
         
         # Set defaults for all attributes
-        self.tf_available = False
         self.torch_available = False
         self.has_gpu = False
         self.gpu_tensors = weakref.WeakSet()
@@ -55,30 +54,27 @@ class GPUManager:
         # Initialize GPU-related resources
         try:
             # Import necessary libraries
-            import tensorflow as tf
             import torch
             
             # Check GPU availability
-            self.tf_available = tf.test.is_gpu_available()
             self.torch_available = torch.cuda.is_available()
-            self.has_gpu = self.tf_available or self.torch_available
+            self.has_gpu = self.torch_available
             
             if self.has_gpu:
                 logging.info("GPU support enabled. Checking devices...")
                 
                 # Get device information
-                if self.torch_available:
-                    device_count = torch.cuda.device_count()
-                    devices = []
-                    
-                    for i in range(device_count):
-                        name = torch.cuda.get_device_name(i)
-                        memory = torch.cuda.get_device_properties(i).total_memory / (1024 ** 3)
-                        devices.append((name, memory))
-                    
-                    logging.info(f"GPU support enabled. {device_count} device(s) found.")
-                    for i, (name, memory) in enumerate(devices):
-                        logging.info(f"  Device {i}: {name} ({memory:.2f} GB)")
+                device_count = torch.cuda.device_count()
+                devices = []
+                
+                for i in range(device_count):
+                    name = torch.cuda.get_device_name(i)
+                    memory = torch.cuda.get_device_properties(i).total_memory / (1024 ** 3)
+                    devices.append((name, memory))
+                
+                logging.info(f"GPU support enabled. {device_count} device(s) found.")
+                for i, (name, memory) in enumerate(devices):
+                    logging.info(f"  Device {i}: {name} ({memory:.2f} GB)")
             else:
                 logging.warning("No GPU support detected.")
                 
@@ -177,7 +173,8 @@ class GPUManager:
             device = torch.cuda.current_device()
             return torch.cuda.memory_reserved(device) - torch.cuda.memory_allocated(device)
         except Exception as e:
-            self.logger.warning(f"Could not get free GPU memory: {e}")
+            # Use logging instead of self.logger as it might not be initialized
+            logging.warning(f"Could not get free GPU memory: {e}")
             return 0
     
     def _collect_garbage(self) -> None:
@@ -191,7 +188,7 @@ class GPUManager:
             import gc
             gc.collect()
         except Exception as e:
-            self.logger.warning(f"Error during garbage collection: {e}")
+            logging.warning(f"Error during garbage collection: {e}")
     
     @contextmanager
     def use_gpu_tensor(self, tensor):
@@ -257,4 +254,5 @@ def get_gpu_manager():
 
 # Global instance for backward compatibility
 # New code should use get_gpu_manager() instead
-gpu_manager = GPUManager.get_instance() 
+gpu_manager = GPUManager.get_instance()
+ 

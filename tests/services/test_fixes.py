@@ -22,27 +22,24 @@ class TestFixes(unittest.TestCase):
         # Create a flat height map
         data = np.ones((10, 10)) * 5.0
         
-        # Mock model loading and prediction to avoid TF dependency issues in test env if not present
-        # But we want to test the normalization logic which happens BEFORE prediction.
-        # The method is _upscale_with_model.
-        # We can subclass or mock the model.
-        
+        # Mock model
         self.upscaling_service.model = MagicMock()
-        self.upscaling_service.model.predict.return_value = np.zeros((1, 10, 10, 1)) # Dummy output
+        # The model returns a tensor
+        import torch
+        self.upscaling_service.model.return_value = torch.zeros((1, 1, 10, 10))
         
-        # We need to mock TF availability if it checks it
-        with patch('heightcraft.services.upscaling_service.TF_AVAILABLE', True):
-            with patch('heightcraft.services.upscaling_service.tf') as mock_tf:
-                # Mock device context manager
-                mock_tf.device.return_value.__enter__.return_value = None
-                
-                # Call the method
-                # It should not raise ZeroDivisionError or produce NaNs
-                try:
-                    result = self.upscaling_service._upscale_with_model(data, 2, False)
-                    self.assertFalse(np.any(np.isnan(result)))
-                except Exception as e:
-                    self.fail(f"Upscaling raised exception on flat data: {e}")
+        # We need to mock parameters().device
+        mock_param = MagicMock()
+        mock_param.device = 'cpu'
+        self.upscaling_service.model.parameters.return_value = iter([mock_param])
+
+        # Call the method
+        # It should not raise ZeroDivisionError or produce NaNs
+        try:
+            result = self.upscaling_service._upscale_with_model(data, 2, False)
+            self.assertFalse(np.any(np.isnan(result)))
+        except Exception as e:
+            self.fail(f"Upscaling raised exception on flat data: {e}")
 
     def test_histogram_equalization_precision(self):
         """Test that histogram equalization runs on 16-bit data without error."""

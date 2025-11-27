@@ -48,33 +48,29 @@ class GPUManager:
         # Initialize GPU-related resources
         try:
             # Import necessary libraries
-            import tensorflow as tf
             import torch
             
             # Check GPU availability
-            self.tf_available = tf.test.is_gpu_available()
             self.torch_available = torch.cuda.is_available()
             
-            if self.tf_available or self.torch_available:
+            if self.torch_available:
                 logging.info("GPU support enabled. Checking devices...")
                 
                 # Get device information
-                if self.torch_available:
-                    device_count = torch.cuda.device_count()
-                    devices = []
-                    
-                    for i in range(device_count):
-                        name = torch.cuda.get_device_name(i)
-                        memory = torch.cuda.get_device_properties(i).total_memory / (1024 ** 3)
-                        devices.append((name, memory))
-                    
-                    logging.info(f"GPU support enabled. {device_count} device(s) found.")
-                    for i, (name, memory) in enumerate(devices):
-                        logging.info(f"  Device {i}: {name} ({memory:.2f} GB)")
+                device_count = torch.cuda.device_count()
+                devices = []
+                
+                for i in range(device_count):
+                    name = torch.cuda.get_device_name(i)
+                    memory = torch.cuda.get_device_properties(i).total_memory / (1024 ** 3)
+                    devices.append((name, memory))
+                
+                logging.info(f"GPU support enabled. {device_count} device(s) found.")
+                for i, (name, memory) in enumerate(devices):
+                    logging.info(f"  Device {i}: {name} ({memory:.2f} GB)")
             else:
                 logging.warning("No GPU support detected.")
                 
         except ImportError:
             logging.warning("GPU libraries not available. Using CPU only.")
-            self.tf_available = False
             self.torch_available = False 

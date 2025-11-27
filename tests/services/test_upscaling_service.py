@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import Mock, patch, MagicMock
 
 import numpy as np
+import torch
 
 from heightcraft.core.exceptions import UpscalingError
 from heightcraft.domain.height_map import HeightMap
@@ -51,7 +52,6 @@ class TestUpscalingService(BaseTestCase):
         self.test_input_file = self.get_temp_path("test_input.png")
         self.test_output_file = self.get_temp_path("test_output.png")
     
-    @patch('heightcraft.services.upscaling_service.TF_AVAILABLE', True)
     @patch('heightcraft.services.upscaling_service.UpscalingService._upscale_with_interpolation')
     def test_upscale_height_map(self, mock_upscale_with_interpolation) -> None:
         """Test upscaling a height map."""
@@ -82,7 +82,6 @@ class TestUpscalingService(BaseTestCase):
         # Check that the interpolation method was called once
         mock_upscale_with_interpolation.assert_called_once()
     
-    @patch('heightcraft.services.upscaling_service.TF_AVAILABLE', True)
     @patch('heightcraft.services.upscaling_service.UpscalingService._upscale_with_interpolation')
     def test_upscale_height_map_with_dimensions(self, mock_upscale_with_interpolation) -> None:
         """Test upscaling a height map with specific dimensions."""
@@ -129,14 +128,6 @@ class TestUpscalingService(BaseTestCase):
         with self.assertRaises(UpscalingError):
             self.upscaling_service.upscale(self.test_height_map, scale_factor=5)
     
-    @patch('heightcraft.services.upscaling_service.TF_AVAILABLE', False)
-    def test_upscale_without_tensorflow(self) -> None:
-        """Test upscaling when TensorFlow is not available."""
-        # Should work using interpolation instead of neural network
-        result = self.upscaling_service.upscale(self.test_height_map, scale_factor=2)
-        self.assertIsInstance(result, HeightMap)
-    
-    @patch('heightcraft.services.upscaling_service.TF_AVAILABLE', True)
     def test_upscale_from_file(self) -> None:
         """Test upscaling a height map from a file."""
         # Create a mock for the UpscalingService class
@@ -156,13 +147,27 @@ class TestUpscalingService(BaseTestCase):
             self.assertEqual(args[1], self.test_output_file)
             self.assertEqual(kwargs.get('scale_factor'), 2)
     
-    @patch('heightcraft.services.upscaling_service.TF_AVAILABLE', True)
-    @patch('heightcraft.services.upscaling_service.tf')
-    def test_upscale_from_file_with_error(self, mock_tf) -> None:
+    def test_upscale_from_file_with_error(self) -> None:
         """Test upscaling a height map file with an error."""
         # Mock file loading to raise an exception
         self.height_map_service.load_height_map.side_effect = Exception("Load error")
         
         # Call the method
         with self.assertRaises(UpscalingError):
-            self.upscaling_service.upscale_file(self.test_input_file, self.test_output_file, scale_factor=2) 
+            self.upscaling_service.upscale_file(self.test_input_file, self.test_output_file, scale_factor=2)
+
+    def test_upscale_with_interpolation_implementation(self):
+        """Test the actual interpolation implementation using PyTorch."""
+        # 4x4 input
+        data = np.zeros((4, 4), dtype=np.float32)
+        data[1:3, 1:3] = 1.0
+        
+        # Upscale by 2
+        result = self.upscaling_service._upscale_with_interpolation(data, scale_factor=2)
+        
+        self.assertEqual(result.shape, (8, 8))
+        self.assertIsInstance(result, np.ndarray)
+        
+        # Check center values are preserved (roughly)
+        self.assertTrue(np.mean(result[2:6, 2:6]) > 0.5)
+ 

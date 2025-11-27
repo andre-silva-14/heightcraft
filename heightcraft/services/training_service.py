@@ -10,12 +10,11 @@ import glob
 from typing import Optional, Tuple, List, Dict
 
 import numpy as np
-
-try:
-    import tensorflow as tf
-    TF_AVAILABLE = True
-except ImportError:
-    TF_AVAILABLE = False
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+from PIL import Image
 
 from heightcraft.core.config import UpscaleConfig
 from heightcraft.core.exceptions import HeightcraftError
@@ -23,11 +22,52 @@ from heightcraft.infrastructure.file_storage import FileStorage
 from heightcraft.infrastructure.gpu_manager import gpu_manager
 from heightcraft.services.upscaling_service import UpscalingService
 from heightcraft.infrastructure.profiler import profiler
+from heightcraft.models.upscaler import UpscalerModel
 
 
 class TrainingError(HeightcraftError):
     """Exception raised for training errors."""
     pass
+
+
+class HeightMapDataset(Dataset):
+    """Dataset for height map training."""
+    
+    def __init__(self, image_paths: List[str]):
+        self.image_paths = image_paths
+        
+    def __len__(self):
+        return len(self.image_paths)
+        
+    def __getitem__(self, idx):
+        path = self.image_paths[idx]
+        
+        try:
+            # Load image
+            img = Image.open(path).convert('L') # Convert to grayscale
+            
+            # Resize to fixed size (128x128)
+            img = img.resize((128, 128), Image.BICUBIC)
+            
+            # Convert to numpy and normalize
+            img_np = np.array(img).astype(np.float32) / 255.0
+            
+            # Create low-res input (downsample by 2)
+            # We simulate low-res by resizing down then up? No, usually we train on LR -> HR
+            # So we create LR by downsampling HR
+            h, w = img_np.shape
+            lr_img = Image.fromarray((img_np * 255).astype(np.uint8)).resize((h // 2, w // 2), Image.BICUBIC)
+            lr_np = np.array(lr_img).astype(np.float32) / 255.0
+            
+            # Add channel dimension: (1, H, W)
+            img_tensor = torch.from_numpy(img_np).unsqueeze(0)
+            lr_tensor = torch.from_numpy(lr_np).unsqueeze(0)
+            
+            return lr_tensor, img_tensor
+            
+        except Exception as e:
+            # Return zeros in case of error to avoid crashing
+            return torch.zeros(1, 64, 64), torch.zeros(1, 128, 128)
 
 
 class TrainingService:
@@ -80,9 +120,6 @@ class TrainingService:
         Raises:
             TrainingError: If training fails
         """
-        if not TF_AVAILABLE:
-            raise TrainingError("TensorFlow is not available for training")
-            
         try:
             self.logger.info(f"Starting training with dataset: {dataset_path}")
             
@@ -93,51 +130,81 @@ class TrainingService:
                 
             self.logger.info(f"Found {len(image_paths)} images")
             
-            # 2. Create TensorFlow dataset
-            dataset = self._create_dataset(image_paths, batch_size, validation_split)
-            train_ds = dataset['train']
-            val_ds = dataset['val']
+            # 2. Split dataset
+            np.random.shuffle(image_paths)
+            split_idx = int(len(image_paths) * (1 - validation_split))
+            train_paths = image_paths[:split_idx]
+            val_paths = image_paths[split_idx:]
+            
+            train_dataset = HeightMapDataset(train_paths)
+            val_dataset = HeightMapDataset(val_paths)
+            
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+            val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
             
             # 3. Create or load model
-            model = self._get_model(output_model_path)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.logger.info(f"Training on {device}")
             
-            # 4. Compile model
-            model.compile(
-                optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                loss='mse',
-                metrics=['mae']
-            )
+            model = UpscalerModel(scale_factor=2)
+            if os.path.exists(output_model_path):
+                self.logger.info(f"Resuming training from {output_model_path}")
+                try:
+                    model.load_state_dict(torch.load(output_model_path, map_location=device))
+                except:
+                    self.logger.warning("Could not load existing model weights, starting from scratch")
+            
+            model.to(device)
+            
+            # 4. Setup optimizer and loss
+            optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+            criterion = nn.MSELoss()
             
             # 5. Train model
             self.logger.info(f"Training for {epochs} epochs...")
             
-            # Setup callbacks
-            callbacks = [
-                tf.keras.callbacks.ModelCheckpoint(
-                    output_model_path,
-                    save_best_only=True,
-                    monitor='val_loss'
-                ),
-                tf.keras.callbacks.EarlyStopping(
-                    monitor='val_loss',
-                    patience=5,
-                    restore_best_weights=True
-                )
-            ]
+            best_val_loss = float('inf')
             
-            history = model.fit(
-                train_ds,
-                epochs=epochs,
-                validation_data=val_ds,
-                callbacks=callbacks
-            )
+            for epoch in range(epochs):
+                # Training phase
+                model.train()
+                train_loss = 0.0
+                
+                for lr_imgs, hr_imgs in train_loader:
+                    lr_imgs, hr_imgs = lr_imgs.to(device), hr_imgs.to(device)
+                    
+                    optimizer.zero_grad()
+                    outputs = model(lr_imgs)
+                    loss = criterion(outputs, hr_imgs)
+                    loss.backward()
+                    optimizer.step()
+                    
+                    train_loss += loss.item() * lr_imgs.size(0)
+                
+                train_loss /= len(train_dataset)
+                
+                # Validation phase
+                model.eval()
+                val_loss = 0.0
+                
+                with torch.no_grad():
+                    for lr_imgs, hr_imgs in val_loader:
+                        lr_imgs, hr_imgs = lr_imgs.to(device), hr_imgs.to(device)
+                        outputs = model(lr_imgs)
+                        loss = criterion(outputs, hr_imgs)
+                        val_loss += loss.item() * lr_imgs.size(0)
+                
+                val_loss /= len(val_dataset)
+                
+                self.logger.info(f"Epoch {epoch+1}/{epochs}: Train Loss: {train_loss:.6f}, Val Loss: {val_loss:.6f}")
+                
+                # Save best model
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    torch.save(model.state_dict(), output_model_path)
+                    self.logger.info(f"Saved best model with val_loss: {val_loss:.6f}")
             
             self.logger.info("Training complete")
-            
-            # Save final model if not saved by checkpoint
-            if not os.path.exists(output_model_path):
-                model.save(output_model_path)
-                
             return output_model_path
             
         except Exception as e:
@@ -151,78 +218,3 @@ class TrainingService:
             paths.extend(glob.glob(os.path.join(dataset_path, ext)))
             paths.extend(glob.glob(os.path.join(dataset_path, "**", ext), recursive=True))
         return sorted(list(set(paths)))
-
-    def _create_dataset(self, image_paths: List[str], batch_size: int, validation_split: float) -> Dict:
-        """Create TensorFlow dataset from image paths."""
-        
-        # Split paths
-        np.random.shuffle(image_paths)
-        split_idx = int(len(image_paths) * (1 - validation_split))
-        train_paths = image_paths[:split_idx]
-        val_paths = image_paths[split_idx:]
-        
-        def process_path(file_path):
-            # Load image
-            img = tf.io.read_file(file_path)
-            img = tf.image.decode_image(img, channels=1, expand_animations=False)
-            img = tf.image.convert_image_dtype(img, tf.float32)
-            
-            # Ensure strictly 1 channel (grayscale)
-            if img.shape[-1] != 1:
-                 img = tf.image.rgb_to_grayscale(img)
-
-            # Random crop to fixed size for training (e.g., 128x128)
-            # We need fixed size patches for batching
-            img = tf.image.resize_with_crop_or_pad(img, 128, 128)
-            
-            # Create low-res input (downsample by factor 2)
-            # We use area interpolation for downsampling to simulate averaging
-            lr_img = tf.image.resize(img, [64, 64], method='area')
-            
-            return lr_img, img
-
-        def configure_for_performance(ds):
-            ds = ds.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
-            ds = ds.cache()
-            ds = ds.shuffle(buffer_size=1000)
-            ds = ds.batch(batch_size)
-            ds = ds.prefetch(buffer_size=tf.data.AUTOTUNE)
-            return ds
-
-        train_ds = tf.data.Dataset.from_tensor_slices(train_paths)
-        train_ds = configure_for_performance(train_ds)
-        
-        val_ds = tf.data.Dataset.from_tensor_slices(val_paths)
-        val_ds = val_ds.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
-        val_ds = val_ds.batch(batch_size)
-        val_ds = val_ds.prefetch(buffer_size=tf.data.AUTOTUNE)
-        
-        return {'train': train_ds, 'val': val_ds}
-
-    def _get_model(self, model_path: str) -> tf.keras.Model:
-        """Get model instance (load existing or create new)."""
-        if os.path.exists(model_path):
-            self.logger.info(f"Resuming training from {model_path}")
-            return tf.keras.models.load_model(model_path)
-        else:
-            self.logger.info("Creating new model")
-            # We reuse the architecture from UpscalingService
-            # But we need to instantiate it directly here or call the helper
-            # Since UpscalingService.create_default_model saves to disk, we can use a temp file
-            # Or better, we can extract the model creation logic.
-            # For now, let's just recreate the simple architecture here to avoid I/O
-            
-            inputs = tf.keras.layers.Input(shape=(None, None, 1))
-            x = inputs
-            x = tf.keras.layers.Conv2D(64, 3, padding='same', activation='relu')(x)
-            for _ in range(4):
-                skip = x
-                x = tf.keras.layers.Conv2D(64, 3, padding='same', activation='relu')(x)
-                x = tf.keras.layers.Conv2D(64, 3, padding='same')(x)
-                x = tf.keras.layers.Add()([x, skip])
-            
-            x = tf.keras.layers.Conv2D(256, 3, padding='same')(x)
-            x = tf.keras.layers.Lambda(lambda x: tf.nn.depth_to_space(x, 2))(x)
-            outputs = tf.keras.layers.Conv2D(1, 3, padding='same')(x)
-            
-            return tf.keras.Model(inputs=inputs, outputs=outputs)
