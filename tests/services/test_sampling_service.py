@@ -165,4 +165,35 @@ class TestSamplingService(BaseTestCase):
         
         # Call the method and check for exception
         with self.assertRaises(SamplingError):
-            self.sampling_service.sample_from_mesh(self.test_mesh) 
+            self.sampling_service.sample_from_mesh(self.test_mesh)
+
+    def test_sample_points_deterministic(self) -> None:
+        """Test that sampling is deterministic with the same seed."""
+        # Setup mock to return different values on subsequent calls unless seeded
+        # Note: Since we are mocking trimesh, we can't easily test the actual numpy random seeding effect
+        # on trimesh.sample. However, we can verify that our service sets the seed.
+        
+        with patch('numpy.random.seed') as mock_seed:
+            self.sampling_service.sample_points(self.test_mesh, 100, use_gpu=False, seed=42)
+            mock_seed.assert_called_with(42)
+
+    def test_sample_extreme_num_points(self) -> None:
+        """Test sampling an extreme number of points."""
+        # Test with a very large number of points
+        large_num = 10000
+        self.sampling_service.sample_points(self.test_mesh, large_num, use_gpu=False)
+        self.mock_trimesh.sample.assert_called_with(large_num)
+        
+        # Test with a very small number of points
+        small_num = 1
+        self.sampling_service.sample_points(self.test_mesh, small_num, use_gpu=False)
+        self.mock_trimesh.sample.assert_called_with(small_num)
+
+    def test_sample_zero_area_mesh(self) -> None:
+        """Test sampling from a mesh with zero area faces."""
+        # Create a mesh with zero area
+        self.mock_trimesh.area = 0.0
+        
+        # Try to sample points
+        with self.assertRaises(SamplingError):
+            self.sampling_service.sample_points(self.test_mesh, 10, use_gpu=False) 

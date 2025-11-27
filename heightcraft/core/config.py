@@ -158,8 +158,10 @@ class ApplicationConfig:
             ApplicationConfig instance
         """
         # Model config
+        mode = ProcessingMode.LARGE if args.get('large_model') else ProcessingMode.STANDARD
         model_config = ModelConfig(
             file_path=args.get('file_path'),
+            mode=mode,
             chunk_size=args.get('chunk_size', 1000),
             cache_dir=args.get('cache_dir')
         )
@@ -167,7 +169,7 @@ class ApplicationConfig:
         # Sampling config
         sampling_config = SamplingConfig(
             num_samples=args.get('num_samples', 1000000),
-            num_threads=args.get('threads', 4),
+            num_threads=args.get('num_threads', 4),
             use_gpu=args.get('use_gpu', False)
         )
         
@@ -180,7 +182,7 @@ class ApplicationConfig:
         
         # Output config
         output_config = OutputConfig(
-            output_path=args.get('output', 'height_map.png'),
+            output_path=args.get('output_path', 'height_map.png'),
             format=args.get('format', 'png')
         )
         

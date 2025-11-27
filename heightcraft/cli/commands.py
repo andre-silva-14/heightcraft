@@ -17,7 +17,6 @@ from heightcraft.core.config import ApplicationConfig
 from heightcraft.core.exceptions import HeightcraftError
 from heightcraft.processors import create_processor
 from heightcraft.core.logging import setup_logging
-from heightcraft.services.training_service import TrainingService
 
 
 class Command(abc.ABC):
@@ -132,9 +131,12 @@ class TrainUpscalerCommand(Command):
             Exit code (0 for success, non-zero for failure)
         """
         try:
+            # Lazy import to avoid TensorFlow overhead/crashes when not training
+            from heightcraft.services.training_service import TrainingService
+            
             # Validate arguments
             if not self.args.get("dataset_path"):
-                self.logger.error("Error: --dataset_path is required for training")
+                self.logger.error("Dataset path is required for training")
                 return 1
             
             # Create configuration

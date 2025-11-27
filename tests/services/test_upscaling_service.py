@@ -24,6 +24,7 @@ class TestUpscalingService(BaseTestCase):
         
         # Create mock dependencies
         self.cache_manager = Mock()
+        self.height_map_service = Mock()
         self.file_storage = Mock()
         
         # Create a config
@@ -33,6 +34,7 @@ class TestUpscalingService(BaseTestCase):
         self.upscaling_service = UpscalingService(
             config=self.config,
             cache_manager=self.cache_manager,
+            height_map_service=self.height_map_service,
             file_storage=self.file_storage
         )
         
@@ -159,7 +161,7 @@ class TestUpscalingService(BaseTestCase):
     def test_upscale_from_file_with_error(self, mock_tf) -> None:
         """Test upscaling a height map file with an error."""
         # Mock file loading to raise an exception
-        self.file_storage.load_height_map.side_effect = Exception("Load error")
+        self.height_map_service.load_height_map.side_effect = Exception("Load error")
         
         # Call the method
         with self.assertRaises(UpscalingError):

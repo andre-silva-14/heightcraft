@@ -246,6 +246,12 @@ class LargeModelProcessor(BaseProcessor):
         Center and align the model.
         
         This operation affects all vertices in the buffer.
+        
+        Note:
+            We implement custom centering and alignment logic here instead of using
+            MeshService because the model is loaded in chunks (vertex_buffer).
+            MeshService expects a complete Mesh object, which we avoid creating
+            to save memory.
         """
         # Calculate centroid from first vertex chunk
         if self.vertex_buffer and len(self.vertex_buffer) > 0:
@@ -479,15 +485,31 @@ class LargeModelProcessor(BaseProcessor):
             width, height = self._calculate_target_resolution(point_cloud)
             resolution = (width, height)
             
-            # Generate height map
-            height_map = self.height_map_service.generate_height_map(
-                point_cloud, resolution, self.height_map_config.bit_depth
+            # Generate height map using the correct method
+            height_map_obj = self.height_map_service.generate_from_point_cloud(
+                point_cloud, 
+                resolution, 
+                bit_depth=self.height_map_config.bit_depth,
+                num_threads=self.sampling_config.num_threads
             )
             
-            return height_map.data
+            # Store the height map object for saving
+            self.height_map = height_map_obj.data
+            
+            return self.height_map
             
         except Exception as e:
             raise HeightMapGenerationError(f"Failed to generate height map: {e}")
+
+    def upscale_height_map(self) -> None:
+        """
+        Upscale the generated height map.
+        
+        Note:
+            Upscaling is currently not supported for large models due to memory constraints.
+            This method logs a warning and does nothing.
+        """
+        self.logger.warning("Upscaling is not currently supported for large models. Skipping upscaling step.")
     
     @profiler.profile()
     def _calculate_target_resolution(self, point_cloud: PointCloud) -> Tuple[int, int]:
@@ -500,25 +522,14 @@ class LargeModelProcessor(BaseProcessor):
         Returns:
             Tuple of (width, height)
         """
-        # Get max resolution from config
-        max_resolution = self.height_map_config.max_resolution
+        # Use ResolutionCalculator
+        from heightcraft.utils.resolution_calculator import ResolutionCalculator
+        calculator = ResolutionCalculator()
         
-        # Calculate aspect ratio
-        aspect_ratio = point_cloud.get_aspect_ratio()
-        
-        # Calculate resolution
-        if aspect_ratio >= 1.0:
-            # Wider than tall
-            width = max_resolution
-            height = int(max_resolution / aspect_ratio)
-        else:
-            # Taller than wide
-            height = max_resolution
-            width = int(max_resolution * aspect_ratio)
-        
-        # Ensure minimum size
-        width = max(width, 32)
-        height = max(height, 32)
+        width, height = calculator.calculate_resolution_from_bounds(
+            point_cloud.bounds,
+            max_resolution=self.height_map_config.max_resolution
+        )
         
         self.logger.info(f"Calculated target resolution: {width}x{height}")
         
@@ -590,92 +601,6 @@ class LargeModelProcessor(BaseProcessor):
         # Force garbage collection
         gc.collect()
     
-    @profiler.profile()
-    def load_model_info(self, file_path: str) -> Dict:
-        """
-        Load model information without loading the entire model.
-        
-        Args:
-            file_path: Path to the model file
-            
-        Returns:
-            Dictionary with model information
-            
-        Raises:
-            ProcessingError: If model information cannot be loaded
-        """
-        try:
-            # Load the mesh
-            mesh = self.mesh_service.load_mesh(file_path)
-            
-            # Get model info
-            return {
-                "vertex_count": mesh.vertex_count,
-                "face_count": mesh.face_count,
-                "is_watertight": mesh.is_watertight,
-                "has_degenerate_faces": mesh.has_degenerate_faces,
-                "is_winding_consistent": mesh.is_winding_consistent,
-                "bounds": mesh.bounds,
-                "file_path": file_path
-            }
-        except Exception as e:
-            raise ProcessingError(f"Failed to load model info: {str(e)}")
-            
-    @profiler.profile()
-    def align_model(self, mesh: Mesh) -> Mesh:
-        """
-        Align a mesh to the XY plane.
-        
-        Args:
-            mesh: The mesh to align
-            
-        Returns:
-            Aligned mesh
-            
-        Raises:
-            ProcessingError: If the mesh cannot be aligned
-        """
-        try:
-            return self.mesh_service.align_mesh_to_xy(mesh)
-        except Exception as e:
-            raise ProcessingError(f"Failed to align model: {str(e)}")
-            
-    @profiler.profile()
-    def center_model(self, mesh: Mesh) -> Mesh:
-        """
-        Center a mesh at the origin.
-        
-        Args:
-            mesh: The mesh to center
-            
-        Returns:
-            Centered mesh
-            
-        Raises:
-            ProcessingError: If the mesh cannot be centered
-        """
-        try:
-            return self.mesh_service.center_mesh(mesh)
-        except Exception as e:
-            raise ProcessingError(f"Failed to center model: {str(e)}")
-            
-    @profiler.profile()
-    def calculate_bounding_box(self, mesh: Mesh) -> np.ndarray:
-        """
-        Calculate the bounding box of a mesh.
-        
-        Args:
-            mesh: The mesh to calculate the bounding box for
-            
-        Returns:
-            Bounding box as a numpy array [[min_x, min_y, min_z], [max_x, max_y, max_z]]
-            
-        Raises:
-            ProcessingError: If the bounding box cannot be calculated
-        """
-        try:
-            return self.mesh_service.get_bounds(mesh)
-        except Exception as e:
-            raise ProcessingError(f"Failed to calculate bounding box: {str(e)}")
+
             
  

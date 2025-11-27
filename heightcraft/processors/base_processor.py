@@ -109,44 +109,57 @@ class BaseProcessor(abc.ABC):
     
     def process(self) -> str:
         """
-        Process the 3D model and generate a height map.
-        
-        This method orchestrates the processing pipeline:
-        1. Load the model
-        2. Sample points
-        3. Generate height map
-        4. Save height map
+        Run the full processing pipeline.
         
         Returns:
             Path to the saved height map
             
         Raises:
-            ProcessingError: If processing fails
+            ProcessingError: If any step fails
         """
         try:
             self.logger.info("Starting processing pipeline")
             
-            # Load model
+            # 1. Load model
             self.logger.info("Loading 3D model")
             self.load_model()
             
-            # Sample points
+            # 2. Sample points
             self.logger.info(f"Sampling {self.sampling_config.num_samples} points")
             self.points = self.sample_points()
             
-            # Generate height map
+            # 3. Generate height map
             self.logger.info("Generating height map")
             self.height_map = self.generate_height_map()
             
-            # Save height map
-            output_path = self.save_height_map()
-            self.logger.info(f"Height map saved to {output_path}")
+            # 4. Upscale height map (if enabled)
+            if self.config.upscale_config.enabled:
+                self.logger.info("Upscaling enabled, performing upscaling step")
+                self.upscale_height_map()
             
+            # 5. Save height map
+            output_path = self.save_height_map()
+            
+            self.logger.info(f"Processing complete. Result saved to {output_path}")
             return output_path
             
         except Exception as e:
             self.logger.error(f"Processing failed: {e}")
+            self.cleanup()
             raise ProcessingError(f"Processing failed: {e}")
+
+    @abc.abstractmethod
+    def upscale_height_map(self) -> None:
+        """
+        Upscale the generated height map.
+        
+        This method must be implemented by all subclasses.
+        
+        Raises:
+            ProcessingError: If upscaling fails
+        """
+        pass
+
     
     def cleanup(self) -> None:
         """

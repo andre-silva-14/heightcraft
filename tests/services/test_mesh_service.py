@@ -12,7 +12,6 @@ from heightcraft.core.exceptions import MeshServiceError, MeshValidationError
 from heightcraft.domain.mesh import Mesh
 from heightcraft.domain.point_cloud import PointCloud
 from heightcraft.services.mesh_service import MeshService
-from heightcraft.utils.point_sampler import PointSampler
 from tests.base_test_case import BaseTestCase
 
 
@@ -134,8 +133,11 @@ class TestMeshService(BaseTestCase):
     
     def test_calculate_target_resolution(self) -> None:
         """Test calculating target resolution."""
-        # Set up mock
-        self.test_mesh.get_aspect_ratio.return_value = 2.0
+        # Set up mock bounds for aspect ratio 2.0 (width=2, height=1)
+        self.test_mesh.bounds = np.array([
+            [0, 0, 0],
+            [2, 1, 1]
+        ])
         
         # Call the method
         result = self.mesh_service.calculate_target_resolution(self.test_mesh, 256)
@@ -145,8 +147,11 @@ class TestMeshService(BaseTestCase):
     
     def test_calculate_target_resolution_tall(self) -> None:
         """Test calculating target resolution for a tall mesh."""
-        # Set up mock
-        self.test_mesh.get_aspect_ratio.return_value = 0.5
+        # Set up mock bounds for aspect ratio 0.5 (width=1, height=2)
+        self.test_mesh.bounds = np.array([
+            [0, 0, 0],
+            [1, 2, 1]
+        ])
         
         # Call the method
         result = self.mesh_service.calculate_target_resolution(self.test_mesh, 256)

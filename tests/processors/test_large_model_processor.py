@@ -136,16 +136,16 @@ class TestLargeModelProcessor(unittest.TestCase):
         self.processor.points = np.random.rand(100, 3)
         
         # Mock height map service response
-        mock_height_map = MagicMock()
-        mock_height_map.data = np.zeros((128, 128))
-        self.height_map_service.generate_height_map.return_value = mock_height_map
+        mock_height_map_obj = MagicMock()
+        mock_height_map_obj.data = np.zeros((128, 128))
+        self.height_map_service.generate_from_point_cloud.return_value = mock_height_map_obj
         
         # Run generation
         height_map = self.processor.generate_height_map()
         
         # Verify
         self.assertIsNotNone(height_map)
-        self.height_map_service.generate_height_map.assert_called()
+        self.height_map_service.generate_from_point_cloud.assert_called()
 
     def test_save_height_map(self):
         """Test saving height map."""

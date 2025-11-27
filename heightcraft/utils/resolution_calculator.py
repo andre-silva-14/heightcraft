@@ -64,6 +64,71 @@ class ResolutionCalculator:
         
         except Exception as e:
             raise CalculationError(f"Failed to calculate optimal resolution: {str(e)}")
+
+    def calculate_resolution_from_bounds(
+        self, 
+        bounds: dict, 
+        target_width: int = 0, 
+        target_height: int = 0,
+        max_resolution: int = 0
+    ) -> Tuple[int, int]:
+        """
+        Calculate resolution (width, height) from bounds and constraints.
+        
+        Args:
+            bounds: Dictionary with min_x, max_x, min_y, max_y
+            target_width: Target width (optional)
+            target_height: Target height (optional)
+            max_resolution: Maximum dimension size (optional)
+            
+        Returns:
+            Tuple of (width, height)
+            
+        Raises:
+            CalculationError: If resolution cannot be calculated
+        """
+        try:
+            min_x = bounds.get("min_x", 0)
+            max_x = bounds.get("max_x", 0)
+            min_y = bounds.get("min_y", 0)
+            max_y = bounds.get("max_y", 0)
+            
+            width_units = max_x - min_x
+            height_units = max_y - min_y
+            
+            aspect_ratio = width_units / height_units if height_units > 0 else 1.0
+            
+            if target_width > 0 and target_height > 0:
+                return target_width, target_height
+            
+            if max_resolution > 0:
+                if aspect_ratio >= 1.0:
+                    # Wider than tall
+                    width = max_resolution
+                    height = int(max_resolution / aspect_ratio)
+                else:
+                    # Taller than wide
+                    height = max_resolution
+                    width = int(max_resolution * aspect_ratio)
+            elif target_width > 0:
+                width = target_width
+                height = int(width / aspect_ratio)
+            elif target_height > 0:
+                height = target_height
+                width = int(height * aspect_ratio)
+            else:
+                # Default to 1 unit = 1 pixel if no constraints
+                width = int(width_units)
+                height = int(height_units)
+            
+            # Ensure minimum size
+            width = max(width, 1)
+            height = max(height, 1)
+            
+            return width, height
+            
+        except Exception as e:
+            raise CalculationError(f"Failed to calculate resolution from bounds: {str(e)}")
     
     def calculate_dimensions_from_resolution(self, mesh: Mesh, resolution: float) -> Tuple[int, int]:
         """

@@ -176,22 +176,23 @@ class MeshService:
             MeshServiceError: If the resolution cannot be calculated
         """
         try:
-            # Get aspect ratio
-            aspect_ratio = self.get_aspect_ratio(mesh)
+            # Use ResolutionCalculator
+            from heightcraft.utils.resolution_calculator import ResolutionCalculator
+            calculator = ResolutionCalculator()
             
-            # Calculate resolution
-            if aspect_ratio >= 1.0:
-                # Wider than tall
-                width = max_resolution
-                height = int(max_resolution / aspect_ratio)
-            else:
-                # Taller than wide
-                height = max_resolution
-                width = int(max_resolution * aspect_ratio)
+            # Get bounds dictionary
+            bounds_array = self.get_bounds(mesh)
+            bounds = {
+                "min_x": bounds_array[0][0],
+                "min_y": bounds_array[0][1],
+                "max_x": bounds_array[1][0],
+                "max_y": bounds_array[1][1]
+            }
             
-            # Ensure minimum size
-            width = max(width, 32)
-            height = max(height, 32)
+            width, height = calculator.calculate_resolution_from_bounds(
+                bounds, 
+                max_resolution=max_resolution
+            )
             
             self.logger.info(f"Calculated target resolution: {width}x{height}")
             
@@ -353,13 +354,14 @@ class MeshService:
             raise MeshServiceError(f"Failed to load mesh from {file_path}: {str(e)}")
     
     @profiler.profile()
-    def convert_mesh_to_height_map(self, mesh: Mesh, resolution: float) -> HeightMap:
+    def convert_mesh_to_height_map(self, mesh: Mesh, resolution: float, num_points: Optional[int] = None) -> HeightMap:
         """
-        Convert a mesh to a height map.
+        Convert a mesh to a height map using point sampling.
         
         Args:
             mesh: The mesh to convert
             resolution: Resolution of the height map
+            num_points: Number of points to sample (optional, calculated if None)
             
         Returns:
             A height map representing the mesh
@@ -379,30 +381,39 @@ class MeshService:
             width = int((max_bound[0] - min_bound[0]) / resolution) + 1
             height = int((max_bound[1] - min_bound[1]) / resolution) + 1
             
-            # Create a height map
-            height_map_data = np.zeros((height, width), dtype=np.float32)
+            # Ensure minimum size
+            width = max(width, 1)
+            height = max(height, 1)
             
-            # Project the mesh vertices onto the XY plane
-            vertices = mesh.vertices
-            faces = mesh.faces
+            # Determine number of points to sample if not provided
+            if num_points is None:
+                # Default to 4x oversampling per pixel
+                num_points = width * height * 4
+                # Clamp to reasonable limits
+                num_points = max(1000, min(num_points, 10_000_000))
             
-            # For each face, find the corresponding height map pixels and set their values
-            for face in faces:
-                v1, v2, v3 = vertices[face]
-                
-                # Convert vertex positions to pixel coordinates
-                x1, y1 = int((v1[0] - min_bound[0]) / resolution), int((v1[1] - min_bound[1]) / resolution)
-                x2, y2 = int((v2[0] - min_bound[0]) / resolution), int((v2[1] - min_bound[1]) / resolution)
-                x3, y3 = int((v3[0] - min_bound[0]) / resolution), int((v3[1] - min_bound[1]) / resolution)
-                
-                # Set the height values
-                height_map_data[y1, x1] = max(height_map_data[y1, x1], v1[2])
-                height_map_data[y2, x2] = max(height_map_data[y2, x2], v2[2])
-                height_map_data[y3, x3] = max(height_map_data[y3, x3], v3[2])
+            self.logger.info(f"Converting mesh to height map ({width}x{height}) using {num_points} samples")
             
-            # Create a height map object
-            height_map = HeightMap(height_map_data, 16)  # Use 16-bit precision instead of 32-bit
+            # Sample points
+            sampling_config = SamplingConfig(
+                num_samples=num_points,
+                use_gpu=False, # Default to CPU for safety in service
+                num_threads=4
+            )
+            sampling_service = SamplingService(sampling_config)
+            points = sampling_service.sample_from_mesh(mesh)
+            point_cloud = PointCloud(points)
             
-            return height_map
+            # Generate height map
+            # Import locally to avoid circular imports if any
+            from heightcraft.services.height_map_service import HeightMapService
+            height_map_service = HeightMapService()
+            
+            return height_map_service.generate_from_point_cloud(
+                point_cloud, 
+                (width, height), 
+                bit_depth=16
+            )
+            
         except Exception as e:
             raise MeshServiceError(f"Failed to convert mesh to height map: {str(e)}") 

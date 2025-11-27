@@ -97,12 +97,39 @@ python main.py path/to/model.obj --num_threads 8
 
 ### Advanced Features
 
+### Splitting
+
 Split output into multiple files:
 
 ```shellscript
 python main.py path/to/model.obj --split 4  # Splits into 2x2 grid
 python main.py path/to/model.obj --split 9  # Splits into 3x3 grid
 ```
+
+
+### Large Model Processing
+
+Handle large models efficiently (default `chunk_size` is 1000000):
+
+```shellscript
+python main.py path/to/large_model.obj --large_model --chunk_size 1500000
+```
+
+### Memory Management
+
+Control memory usage (Default: 80% of available memory):
+
+```shellscript
+python main.py path/to/model.obj --max_memory 0.6
+```
+
+Specify cache directory for faster repeated processing (default: `.cache` in current directory):
+
+```shellscript
+python main.py path/to/model.obj --cache_dir ./cache
+```
+
+### AI Upscaling
 
 Enable AI upscaling:
 
@@ -141,28 +168,6 @@ Arguments:
 *   *For quick testing:* `--epochs 5 --batch_size 8`
 *   *For high quality:* `--epochs 100 --learning_rate 0.00005`
 
-### Memory Management
-
-Control memory usage (Default: 80% of available memory):
-
-```shellscript
-python main.py path/to/model.obj --max_memory 0.6
-```
-
-Specify cache directory for faster repeated processing (default: `.cache` in current directory):
-
-```shellscript
-python main.py path/to/model.obj --cache_dir ./cache
-```
-
-### Large Model Processing
-
-Handle large models efficiently (default `chunk_size` is 1000000):
-
-```shellscript
-python main.py path/to/large_model.obj --large_model --chunk_size 1500000
-```
-
 ## 🔄 Complete Example
 
 Generate a high-resolution height map with GPU acceleration, upscaling, and splitting:
@@ -188,12 +193,6 @@ To install development dependencies:
 uv pip install -e ".[dev]"
 ```
 
-
-Running the legacy code:
-
-```shellscript
-python3 main.py --legacy path/to/model.obj
-```
 
 ## 🧪 Testing
 

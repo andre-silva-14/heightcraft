@@ -4,8 +4,10 @@ Height map service for working with height maps.
 This module provides services for loading, saving, and manipulating height maps.
 """
 
+import logging
 import os
-from typing import Dict, Optional, Tuple, Union
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy import ndimage
@@ -14,6 +16,7 @@ from heightcraft.core.exceptions import HeightMapServiceError
 from heightcraft.domain.height_map import HeightMap
 from heightcraft.domain.mesh import Mesh
 from heightcraft.domain.point_cloud import PointCloud
+from heightcraft.utils import converters
 
 
 class HeightMapService:
@@ -27,6 +30,7 @@ class HeightMapService:
             height_map_repository: Repository for loading and saving height maps.
         """
         self.height_map_repository = height_map_repository
+        self.logger = logging.getLogger(self.__class__.__name__)
     
     def load_height_map(self, file_path: str, resolution: float) -> HeightMap:
         """
@@ -71,6 +75,75 @@ class HeightMapService:
                 return height_map.save(file_path)
         except Exception as e:
             raise HeightMapServiceError(f"Failed to save height map to {file_path}: {str(e)}")
+
+    def split_height_map(self, height_map: HeightMap, split_count: int) -> List[HeightMap]:
+        """
+        Split a height map into multiple tiles.
+        
+        Args:
+            height_map: The height map to split.
+            split_count: The number of tiles to split into (must be a perfect square).
+            
+        Returns:
+            List of height map tiles.
+            
+        Raises:
+            HeightMapServiceError: If the height map cannot be split.
+        """
+        try:
+            # Calculate grid size (tiles per side) from total split count
+            grid_size = int(split_count ** 0.5)
+            
+            if grid_size * grid_size != split_count:
+                raise HeightMapServiceError(f"Split count {split_count} must be a perfect square (e.g., 4, 9, 16)")
+                
+            return height_map.split(grid_size)
+        except Exception as e:
+            raise HeightMapServiceError(f"Failed to split height map: {str(e)}")
+
+    def save_split_height_maps(self, split_maps: List[HeightMap], output_path: str) -> str:
+        """
+        Save split height maps to a directory.
+        
+        Args:
+            split_maps: List of height map tiles.
+            output_path: Base path for the output.
+            
+        Returns:
+            Path to the directory containing the split maps.
+            
+        Raises:
+            HeightMapServiceError: If the maps cannot be saved.
+        """
+        try:
+            # Create output directory
+            base_name = os.path.splitext(os.path.basename(output_path))[0]
+            output_dir = os.path.join(os.path.dirname(os.path.abspath(output_path)), f"{base_name}_split")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Calculate grid dimensions
+            num_tiles = len(split_maps)
+            grid_size = int(num_tiles ** 0.5)
+            
+            # Save each tile
+            for i, tile in enumerate(split_maps):
+                row = i // grid_size
+                col = i % grid_size
+                
+                # Construct tile path
+                ext = os.path.splitext(output_path)[1]
+                if not ext:
+                    ext = ".png"
+                
+                tile_path = os.path.join(output_dir, f"{base_name}_{row}_{col}{ext}")
+                
+                # Save tile
+                self.save_height_map(tile, tile_path)
+            
+            return output_dir
+            
+        except Exception as e:
+            raise HeightMapServiceError(f"Failed to save split height maps: {str(e)}")
     
     def normalize_height_map(self, height_map: HeightMap) -> HeightMap:
         """
@@ -86,21 +159,154 @@ class HeightMapService:
             HeightMapServiceError: If the height map cannot be normalized.
         """
         try:
-            # Get the data and normalize it manually
-            data = height_map.data
-            min_val = np.min(data)
-            max_val = np.max(data)
-            
-            # Avoid division by zero
-            if min_val == max_val:
-                normalized_data = np.zeros_like(data)
-            else:
-                normalized_data = (data - min_val) / (max_val - min_val)
+            # Use converters for normalization
+            normalized_data = converters.normalize_array(height_map.data, 0.0, 1.0)
             
             # Create a new height map with the normalized data
             return HeightMap(normalized_data, height_map.bit_depth)
         except Exception as e:
             raise HeightMapServiceError(f"Failed to normalize height map: {str(e)}")
+
+    def generate_from_point_cloud(
+        self, 
+        point_cloud: PointCloud, 
+        resolution: Tuple[int, int], 
+        bit_depth: int = 16,
+        num_threads: int = 4
+    ) -> HeightMap:
+        """
+        Generate a height map from a point cloud.
+        
+        Args:
+            point_cloud: The point cloud to generate from.
+            resolution: Target resolution (width, height).
+            bit_depth: Bit depth of the output height map (8 or 16).
+            num_threads: Number of threads to use for processing.
+            
+        Returns:
+            Generated height map.
+            
+        Raises:
+            HeightMapServiceError: If generation fails.
+        """
+        try:
+            width, height = resolution
+            points = point_cloud.points
+            
+            if len(points) == 0:
+                raise HeightMapServiceError("Cannot generate height map from empty point cloud")
+                
+            # Extract 2D points and Z values
+            points_2d = points[:, :2]
+            z_values = points[:, 2]
+            bounds = point_cloud.bounds
+            
+            # Initialize height map
+            height_map_data = np.zeros((height, width), dtype=np.float32)
+            
+            # Calculate coordinates in parallel
+            futures = []
+            chunk_size = max(1, len(points_2d) // num_threads)
+            
+            # Pre-calculate ranges to avoid redundant computation in chunks
+            x_range = bounds["max_x"] - bounds["min_x"]
+            y_range = bounds["max_y"] - bounds["min_y"]
+            z_range = bounds["max_z"] - bounds["min_z"]
+            
+            # Handle zero ranges
+            if x_range == 0: x_range = 1.0  # Avoid division by zero
+            if y_range == 0: y_range = 1.0
+            if z_range == 0: z_range = 1.0
+            
+            with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                for i in range(0, len(points_2d), chunk_size):
+                    chunk = slice(i, min(i + chunk_size, len(points_2d)))
+                    futures.append(
+                        executor.submit(
+                            self._process_chunk,
+                            points_2d[chunk],
+                            z_values[chunk],
+                            width,
+                            height,
+                            bounds,
+                            (x_range, y_range, z_range)
+                        )
+                    )
+                
+                # Combine results
+                for future in futures:
+                    chunk_coords, chunk_values = future.result()
+                    if len(chunk_coords) > 0:
+                        # Use maximum projection (highest point wins)
+                        np.maximum.at(
+                            height_map_data, (chunk_coords[:, 1], chunk_coords[:, 0]), chunk_values
+                        )
+            
+            # Create height map object (data is already normalized Z values from _process_chunk)
+            # But we might want to ensure it's in [0, 1] range if _process_chunk does that
+            # _process_chunk normalizes Z to [0, 1] based on bounds
+            
+            return HeightMap(height_map_data, bit_depth)
+            
+        except Exception as e:
+            raise HeightMapServiceError(f"Failed to generate height map from point cloud: {str(e)}")
+
+    def _process_chunk(
+        self, 
+        points: np.ndarray, 
+        z_values: np.ndarray, 
+        width: int, 
+        height: int, 
+        bounds: Dict[str, float],
+        ranges: Tuple[float, float, float]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Process a chunk of points for height map generation.
+        
+        Args:
+            points: 2D points
+            z_values: Z values
+            width: Width of the height map
+            height: Height of the height map
+            bounds: Dictionary of bounds
+            ranges: Tuple of (x_range, y_range, z_range)
+            
+        Returns:
+            Tuple of coordinates and values
+        """
+        # Calculate pixel coordinates
+        x_range, y_range, z_range = ranges
+        
+        # Check if ranges are effectively zero (handled by caller but double check for safety)
+        if x_range <= 1e-9:
+            x_coords = np.zeros(len(points), dtype=int)
+        else:
+            x_coords = (
+                (points[:, 0] - bounds["min_x"])
+                / x_range
+                * (width - 1)
+            ).astype(int)
+        
+        if y_range <= 1e-9:
+            y_coords = np.zeros(len(points), dtype=int)
+        else:
+            y_coords = (
+                (1.0 - (points[:, 1] - bounds["min_y"])
+                / y_range)
+                * (height - 1)
+            ).astype(int)
+        
+        # Clip coordinates to be safe
+        x_coords = np.clip(x_coords, 0, width - 1)
+        y_coords = np.clip(y_coords, 0, height - 1)
+        
+        # Normalize Z values
+        if z_range <= 1e-9:
+            z_normalized = np.zeros(len(z_values), dtype=np.float32)
+        else:
+            z_normalized = (z_values - bounds["min_z"]) / z_range
+        
+        return np.column_stack((x_coords, y_coords)), z_normalized
     
     def resize_height_map(self, height_map: HeightMap, width: int, height: int) -> HeightMap:
         """

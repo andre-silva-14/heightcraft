@@ -37,7 +37,7 @@ class SamplingService:
         self.logger = logging.getLogger(self.__class__.__name__)
     
     @profiler.profile()
-    def sample_points(self, mesh: Mesh, num_samples: int, use_gpu: bool, num_threads: int = 1) -> PointCloud:
+    def sample_points(self, mesh: Mesh, num_samples: int, use_gpu: bool, num_threads: int = 1, seed: Optional[int] = None) -> PointCloud:
         """
         Sample points from a mesh with explicit parameters.
         
@@ -46,6 +46,7 @@ class SamplingService:
             num_samples: Number of points to sample
             use_gpu: Whether to use GPU
             num_threads: Number of threads for CPU sampling
+            seed: Optional random seed for reproducible sampling
             
         Returns:
             PointCloud containing sampled points
@@ -54,6 +55,9 @@ class SamplingService:
             SamplingError: If sampling fails
         """
         try:
+            if seed is not None:
+                np.random.seed(seed)
+                
             if use_gpu and gpu_manager.has_gpu:
                 points = self._sample_points_gpu(mesh, num_samples)
             elif num_threads > 1:
@@ -297,51 +301,4 @@ class SamplingService:
         except Exception as e:
             raise SamplingError(f"Failed to sample points with threads: {str(e)}")
     
-    @profiler.profile()
-    def subsample_point_cloud(self, point_cloud: PointCloud, num_samples: int) -> PointCloud:
-        """
-        Subsample a point cloud.
-        
-        Args:
-            point_cloud: The point cloud to subsample
-            num_samples: Number of points to include in the subsample
-            
-        Returns:
-            Subsampled point cloud
-            
-        Raises:
-            SamplingError: If subsampling fails
-        """
-        try:
-            if num_samples >= point_cloud.size:
-                return point_cloud
-            
-            self.logger.info(f"Subsampling point cloud from {point_cloud.size} to {num_samples} points")
-            
-            return point_cloud.subsample(num_samples)
-            
-        except Exception as e:
-            raise SamplingError(f"Failed to subsample point cloud: {e}")
-    
-    @profiler.profile()
-    def merge_point_clouds(self, point_clouds: list[PointCloud]) -> PointCloud:
-        """
-        Merge multiple point clouds.
-        
-        Args:
-            point_clouds: List of point clouds to merge
-            
-        Returns:
-            Merged point cloud
-            
-        Raises:
-            SamplingError: If merging fails
-        """
-        try:
-            total_points = sum(pc.size for pc in point_clouds)
-            self.logger.info(f"Merging {len(point_clouds)} point clouds with {total_points} total points")
-            
-            return PointCloud.merge(point_clouds)
-            
-        except Exception as e:
-            raise SamplingError(f"Failed to merge point clouds: {e}") 
+ 

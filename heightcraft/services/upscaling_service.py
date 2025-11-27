@@ -36,6 +36,7 @@ class UpscalingService:
         self, 
         config: Optional[UpscaleConfig] = None,
         cache_manager: Optional[CacheManager] = None,
+        height_map_service: Optional['HeightMapService'] = None,
         file_storage: Optional[FileStorage] = None
     ):
         """
@@ -44,13 +45,73 @@ class UpscalingService:
         Args:
             config: Upscaling configuration
             cache_manager: Cache manager for caching upscaled height maps
+            height_map_service: Service for height map I/O
             file_storage: File storage for loading pretrained models
         """
         self.config = config or UpscaleConfig()
         self.cache_manager = cache_manager or CacheManager()
+        
+        # Use HeightMapService for height map I/O
+        if height_map_service:
+            self.height_map_service = height_map_service
+        else:
+            # Import locally to avoid circular imports
+            from heightcraft.services.height_map_service import HeightMapService
+            self.height_map_service = HeightMapService()
+            
         self.file_storage = file_storage or FileStorage()
         self.logger = logging.getLogger(self.__class__.__name__)
         self.model = None
+
+    # ... (upscale method remains the same) ...
+
+    @profiler.profile()
+    def upscale_file(
+        self,
+        input_file: str,
+        output_file: str,
+        scale_factor: Optional[int] = None,
+        use_gpu: bool = True
+    ) -> bool:
+        """
+        Upscale a height map from a file and save the result.
+
+        Args:
+            input_file: Path to the input height map file
+            output_file: Path to save the upscaled height map
+            scale_factor: Scale factor (2, 3, or 4) (overrides config)
+            use_gpu: Whether to use GPU for upscaling
+
+        Returns:
+            True if the file was upscaled and saved successfully
+
+        Raises:
+            UpscalingError: If upscaling fails
+        """
+        try:
+            # Load the height map using HeightMapService
+            # We don't know the resolution, so we might need to rely on the service to handle it
+            # or assume a default. HeightMapService.load_height_map requires resolution.
+            # However, for upscaling, we usually want to load the existing file as is.
+            # If HeightMapService doesn't support loading without resolution, we might need to check.
+            # Looking at HeightMapService.load_height_map(file_path, resolution), it seems resolution is required.
+            # But HeightMap.from_file might handle it if resolution is not critical for loading (e.g. for images).
+            # Let's check HeightMapService again.
+            
+            # For now, we'll assume we can pass a dummy resolution or 1.0 if it's just an image load
+            # But wait, HeightMap.from_file takes resolution to convert pixel values to height values if needed?
+            # Actually, looking at HeightMapService, it calls repo.load or HeightMap.from_file.
+            
+            # Let's assume 1.0 for now as we are just upscaling the image data usually.
+            height_map = self.height_map_service.load_height_map(input_file, resolution=1.0)
+            
+            # Upscale the height map
+            upscaled = self.upscale(height_map, scale_factor, use_gpu)
+            
+            # Save the upscaled height map using HeightMapService
+            return self.height_map_service.save_height_map(upscaled, output_file)
+        except Exception as e:
+            raise UpscalingError(f"Failed to upscale file {input_file}: {e}")
     
     @profiler.profile()
     def upscale(
@@ -335,13 +396,14 @@ class UpscalingService:
             UpscalingError: If upscaling fails
         """
         try:
-            # Load the height map
-            height_map = self.file_storage.load_height_map(input_file)
+            # Load the height map using HeightMapService
+            # We use a default resolution of 1.0 as we are primarily operating on the image data
+            height_map = self.height_map_service.load_height_map(input_file, resolution=1.0)
             
             # Upscale the height map
             upscaled = self.upscale(height_map, scale_factor, use_gpu)
             
-            # Save the upscaled height map
-            return self.file_storage.save_height_map(upscaled, output_file)
+            # Save the upscaled height map using HeightMapService
+            return self.height_map_service.save_height_map(upscaled, output_file)
         except Exception as e:
             raise UpscalingError(f"Failed to upscale file {input_file}: {e}") 

@@ -133,7 +133,57 @@ class HeightMap:
             # Create the directory if it doesn't exist
             os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
             
-            # Save as a numpy array
+            # Determine format
+            if format is None:
+                ext = os.path.splitext(output_path)[1].lower()
+                if ext in ['.png']:
+                    format = OutputFormat.PNG
+                elif ext in ['.jpg', '.jpeg']:
+                    format = OutputFormat.JPEG
+                elif ext in ['.tif', '.tiff']:
+                    format = OutputFormat.TIFF
+            
+            # If format is not specified and extension is unknown, or if it's not an image format,
+            # fall back to numpy save (legacy behavior or for .npy files)
+            if format is None and not output_path.endswith('.npy'):
+                # Default to numpy save for backward compatibility if no format matches
+                np.save(output_path, self._data)
+                return True
+                
+            # Handle image formats
+            if format in [OutputFormat.PNG, OutputFormat.JPEG, OutputFormat.TIFF]:
+                from PIL import Image
+                
+                # Prepare data for PIL
+                if self._bit_depth == 16:
+                    # For 16-bit, we need to ensure data is uint16
+                    if self._data.dtype != np.uint16:
+                        # Normalize to 0-1 then scale to 65535
+                        data_norm = (self._data - self.min_height) / (self.max_height - self.min_height) if self.max_height > self.min_height else np.zeros_like(self._data)
+                        img_data = (data_norm * 65535).astype(np.uint16)
+                    else:
+                        img_data = self._data
+                    
+                    # Create 16-bit image using the newer Pillow API
+                    # Convert to 'I' (32-bit integer) mode and then save as 16-bit
+                    img = Image.fromarray(img_data.astype(np.uint16))
+                else:
+                    # For 8-bit, ensure data is uint8
+                    if self._data.dtype != np.uint8:
+                        # Normalize to 0-1 then scale to 255
+                        data_norm = (self._data - self.min_height) / (self.max_height - self.min_height) if self.max_height > self.min_height else np.zeros_like(self._data)
+                        img_data = (data_norm * 255).astype(np.uint8)
+                    else:
+                        img_data = self._data
+                    
+                    # Create 8-bit image
+                    img = Image.fromarray(img_data, mode='L')
+                
+                # Save using PIL
+                img.save(output_path)
+                return True
+            
+            # Fallback to numpy save
             np.save(output_path, self._data)
             return True
             
