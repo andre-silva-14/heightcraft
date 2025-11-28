@@ -76,7 +76,6 @@ CLI_COMMAND_GROUPS = {
     ],
     "Large Model Options": [
         "large_model",
-        "extreme_memory_saving",
         "chunk_size",
         "max_memory",
         "cache_dir",

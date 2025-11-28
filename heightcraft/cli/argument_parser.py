@@ -119,11 +119,6 @@ def create_parser() -> argparse.ArgumentParser:
         help="Use memory-efficient techniques for large models.",
     )
     large_model_group.add_argument(
-        "--extreme_memory_saving",
-        action="store_true",
-        help="Use extreme memory-saving techniques for very large models. May be slower.",
-    )
-    large_model_group.add_argument(
         "--chunk_size",
         type=int,
         default=1000000,
