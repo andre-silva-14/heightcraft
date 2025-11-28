@@ -28,15 +28,20 @@ def create_processor(config: ApplicationConfig) -> BaseProcessor:
         ImportError: If the required processor cannot be imported
     """
     # Determine processor type based on processing mode
-    if config.model_config.mode == ProcessingMode.STANDARD:
-        from heightcraft.processors.standard_processor import StandardProcessor
-        return StandardProcessor(config)
-    elif config.model_config.mode == ProcessingMode.LARGE:
-        from heightcraft.processors.large_model_processor import LargeModelProcessor
-        return LargeModelProcessor(config)
-    elif config.model_config.mode == ProcessingMode.LIDAR:
+    if config.model_config.mode == ProcessingMode.LIDAR:
         from heightcraft.processors.lidar_processor import LidarProcessor
         return LidarProcessor(config)
+        
+    if config.model_config.mode == ProcessingMode.IMAGE:
+        from heightcraft.processors.image_processor import ImageProcessor
+        return ImageProcessor(config)
+        
+    if config.model_config.mode == ProcessingMode.LARGE:
+        from heightcraft.processors.large_model_processor import LargeModelProcessor
+        return LargeModelProcessor(config)
+    elif config.model_config.mode == ProcessingMode.STANDARD: # Re-added STANDARD as an elif to maintain original logic flow
+        from heightcraft.processors.standard_processor import StandardProcessor
+        return StandardProcessor(config)
     else:
         # Default to standard processor
         from heightcraft.processors.standard_processor import StandardProcessor

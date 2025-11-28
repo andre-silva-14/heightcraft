@@ -2,9 +2,13 @@
 Tests for the HeightMap domain model.
 """
 
+import logging
 import os
+import shutil
+import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 
@@ -199,25 +203,25 @@ class TestHeightMap(BaseTestCase):
         self.assertEqual(height_map_dict["max"], self.height_map.max)
         self.assertEqual(height_map_dict["bit_depth"], self.height_map.bit_depth)
     
-    @patch("numpy.load")
-    def test_from_file(self, mock_load) -> None:
-        """Test loading a height map from a file."""
-        # Set up the mock
-        mock_load.return_value = self.data
-        
-        # Create a test filepath
-        file_path = self.get_temp_path("test_height_map.npy")
-        
-        # Test with bit depth provided
-        with self.assertWarns(DeprecationWarning):
-            height_map = HeightMap.from_file(file_path, bit_depth=8)
-        
-        # Check the result
-        self.assertIsInstance(height_map, HeightMap)
-        self.assertEqual(height_map.bit_depth, 8)
-        
-        # Check that the mock was called
-        mock_load.assert_called_with(file_path)
+    def test_from_file(self):
+        """Test loading height map from file."""
+        # Create a dummy file
+        data = np.random.rand(10, 10).astype(np.float32)
+        with tempfile.NamedTemporaryFile(suffix=".npy", delete=False) as f:
+            np.save(f.name, data)
+            file_path = f.name
+            
+        try:
+            # Load from file
+            hm = HeightMap.from_file(file_path, bit_depth=32)
+            
+            self.assertEqual(hm.width, 10)
+            self.assertEqual(hm.height, 10)
+            np.testing.assert_array_equal(hm.data, data)
+            
+        finally:
+            if os.path.exists(file_path):
+                os.remove(file_path)
     
     @patch("numpy.load")
     def test_from_file_with_missing_bit_depth(self, mock_load) -> None:

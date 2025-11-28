@@ -7,6 +7,7 @@ for clarity, type validation, and immutability.
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -40,6 +41,7 @@ class ProcessingMode(Enum):
     STANDARD = auto()  # Standard processing for regular models
     LARGE = auto()     # Memory-efficient processing for large models
     LIDAR = auto()     # Processing for LiDAR data
+    IMAGE = auto()     # Processing for Image data
 
 
 @dataclass(frozen=True)
@@ -163,17 +165,20 @@ class ApplicationConfig:
         """
         # Model config
         file_path = args.get('file_path')
+        file_extension = os.path.splitext(file_path)[1].lower()
         mode = ProcessingMode.STANDARD
         
         if args.get('large_model'):
             mode = ProcessingMode.LARGE
-        elif file_path and (file_path.lower().endswith('.las') or file_path.lower().endswith('.laz')):
+        elif file_path and file_extension in ['.las', '.laz']:
             mode = ProcessingMode.LIDAR
+        elif file_path and file_extension in ['.png', '.jpg', '.jpeg', '.tif', '.tiff', '.raw']:
+            mode = ProcessingMode.IMAGE
             
         model_config = ModelConfig(
             file_path=file_path,
             mode=mode,
-            chunk_size=args.get('chunk_size', 1000),
+            chunk_size=args.get('chunk_size', 1000000), # Corrected default
             cache_dir=args.get('cache_dir')
         )
         
