@@ -68,8 +68,8 @@ def create_parser() -> argparse.ArgumentParser:
     output_group.add_argument(
         "--output_path",
         type=str,
-        default="height_map.png",
-        help="Output path for the height map.",
+        default=None,
+        help="Output path for the height map. Defaults to height_map.png (8/16-bit) or height_map.tiff (32-bit).",
     )
     output_group.add_argument(
         "--max_resolution",
@@ -80,7 +80,7 @@ def create_parser() -> argparse.ArgumentParser:
     output_group.add_argument(
         "--bit_depth",
         type=int,
-        choices=[8, 16],
+        choices=[8, 16, 32],
         default=16,
         help="Bit depth for the height map.",
     )

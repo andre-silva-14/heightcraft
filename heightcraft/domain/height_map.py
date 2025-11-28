@@ -82,8 +82,10 @@ class HeightMap:
         return self._bit_depth
     
     @property
-    def max_value(self) -> int:
+    def max_value(self) -> Union[int, float]:
         """Get the maximum value based on bit depth."""
+        if self._bit_depth == 32:
+            return 1.0
         return (2 ** self._bit_depth) - 1
     
     @property
@@ -152,6 +154,14 @@ class HeightMap:
                 
             # Handle image formats
             if format in [OutputFormat.PNG, OutputFormat.JPEG, OutputFormat.TIFF]:
+                
+                # Special handling for 32-bit TIFF
+                if self._bit_depth == 32 and format == OutputFormat.TIFF:
+                    import tifffile
+                    # Save as float32 TIFF
+                    tifffile.imwrite(output_path, self._data.astype(np.float32))
+                    return True
+                
                 from PIL import Image
                 
                 # Prepare data for PIL
@@ -167,6 +177,13 @@ class HeightMap:
                     # Create 16-bit image using the newer Pillow API
                     # Convert to 'I' (32-bit integer) mode and then save as 16-bit
                     img = Image.fromarray(img_data.astype(np.uint16))
+                elif self._bit_depth == 32:
+                     # Fallback if someone tries to save 32-bit as PNG/JPEG (not supported by standard PIL)
+                     # We'll convert to 16-bit for visualization/compatibility
+                     warnings.warn("Saving 32-bit data as PNG/JPEG reduces precision to 16-bit.")
+                     data_norm = (self._data - self.min_height) / (self.max_height - self.min_height) if self.max_height > self.min_height else np.zeros_like(self._data)
+                     img_data = (data_norm * 65535).astype(np.uint16)
+                     img = Image.fromarray(img_data)
                 else:
                     # For 8-bit, ensure data is uint8
                     if self._data.dtype != np.uint8:
@@ -182,7 +199,31 @@ class HeightMap:
                 # Save using PIL
                 img.save(output_path)
                 return True
-            
+                
+            elif format == OutputFormat.RAW:
+                # Handle RAW format
+                if self._bit_depth == 32:
+                    warnings.warn("32-bit RAW not supported, downgrading to 16-bit.")
+                    # Normalize and convert to 16-bit
+                    data_norm = (self._data - self.min_height) / (self.max_height - self.min_height) if self.max_height > self.min_height else np.zeros_like(self._data)
+                    data_to_save = (data_norm * 65535).astype(np.uint16)
+                elif self._bit_depth == 16:
+                    if self._data.dtype != np.uint16:
+                        data_norm = (self._data - self.min_height) / (self.max_height - self.min_height) if self.max_height > self.min_height else np.zeros_like(self._data)
+                        data_to_save = (data_norm * 65535).astype(np.uint16)
+                    else:
+                        data_to_save = self._data
+                else: # 8-bit
+                    if self._data.dtype != np.uint8:
+                        data_norm = (self._data - self.min_height) / (self.max_height - self.min_height) if self.max_height > self.min_height else np.zeros_like(self._data)
+                        data_to_save = (data_norm * 255).astype(np.uint8)
+                    else:
+                        data_to_save = self._data
+                
+                # Write raw bytes
+                data_to_save.tofile(output_path)
+                return True
+                
             # Fallback to numpy save
             np.save(output_path, self._data)
             return True
@@ -439,8 +480,8 @@ class HeightMap:
         Raises:
             HeightMapValidationError: If the bit depth is invalid
         """
-        if bit_depth not in [8, 16]:
-            raise HeightMapValidationError(f"Bit depth must be 8 or 16, got {bit_depth}")
+        if bit_depth not in [8, 16, 32]:
+            raise HeightMapValidationError(f"Bit depth must be 8, 16, or 32, got {bit_depth}")
     
     @classmethod
     def from_file(cls, file_path: str, bit_depth: Optional[int] = None) -> "HeightMap":
@@ -530,7 +571,13 @@ class HeightMap:
         # Convert to the proper bit depth
         if bit_depth == 8:
             data = (height_map * 255).astype(np.uint8)
-        else:  # bit_depth == 16
+        elif bit_depth == 16:
             data = (height_map * 65535).astype(np.uint16)
+        else:  # bit_depth == 32
+            # Keep as float32 in [0, 1] range or scale if needed?
+            # Standard for 32-bit TIFF is often float32.
+            # We'll keep it as float32 normalized [0, 1] for now, or should we map to real world units?
+            # The current architecture normalizes everything. Let's stick to normalized float32.
+            data = height_map.astype(np.float32)
         
         return cls(data, bit_depth) 

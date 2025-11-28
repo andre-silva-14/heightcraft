@@ -17,6 +17,7 @@ class OutputFormat(Enum):
     PNG = auto()
     TIFF = auto()
     JPEG = auto()
+    RAW = auto()
     
     @classmethod
     def from_extension(cls, extension: str) -> "OutputFormat":
@@ -28,6 +29,8 @@ class OutputFormat(Enum):
             return cls.TIFF
         elif ext in [".jpg", ".jpeg"]:
             return cls.JPEG
+        elif ext in [".raw"]:
+            return cls.RAW
         return cls.PNG  # Default to PNG
 
 
@@ -36,6 +39,7 @@ class ProcessingMode(Enum):
     
     STANDARD = auto()  # Standard processing for regular models
     LARGE = auto()     # Memory-efficient processing for large models
+    LIDAR = auto()     # Processing for LiDAR data
 
 
 @dataclass(frozen=True)
@@ -88,8 +92,8 @@ class HeightMapConfig:
         """Validate configuration values."""
         if self.max_resolution <= 0:
             raise ValueError("Maximum resolution must be a positive integer")
-        if self.bit_depth not in [8, 16]:
-            raise ValueError("Bit depth must be either 8 or 16")
+        if self.bit_depth not in [8, 16, 32]:
+            raise ValueError("Bit depth must be 8, 16, or 32")
         if self.split <= 0:
             raise ValueError("Split value must be a positive integer")
 
@@ -158,9 +162,16 @@ class ApplicationConfig:
             ApplicationConfig instance
         """
         # Model config
-        mode = ProcessingMode.LARGE if args.get('large_model') else ProcessingMode.STANDARD
+        file_path = args.get('file_path')
+        mode = ProcessingMode.STANDARD
+        
+        if args.get('large_model'):
+            mode = ProcessingMode.LARGE
+        elif file_path and (file_path.lower().endswith('.las') or file_path.lower().endswith('.laz')):
+            mode = ProcessingMode.LIDAR
+            
         model_config = ModelConfig(
-            file_path=args.get('file_path'),
+            file_path=file_path,
             mode=mode,
             chunk_size=args.get('chunk_size', 1000),
             cache_dir=args.get('cache_dir')
@@ -174,15 +185,21 @@ class ApplicationConfig:
         )
         
         # Height map config
+        bit_depth = args.get('bit_depth', 8)
         height_map_config = HeightMapConfig(
             max_resolution=args.get('max_resolution', 1024),
-            bit_depth=args.get('bit_depth', 8),
+            bit_depth=bit_depth,
             split=args.get('split', 1)
         )
         
         # Output config
+        output_path = args.get('output_path')
+        if output_path is None:
+            # Smart default based on bit depth
+            output_path = 'height_map.tiff' if bit_depth == 32 else 'height_map.png'
+            
         output_config = OutputConfig(
-            output_path=args.get('output_path', 'height_map.png'),
+            output_path=output_path,
             format=args.get('format', 'png')
         )
         

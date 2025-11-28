@@ -106,8 +106,10 @@ def bit_depth_to_dtype(bit_depth: int) -> np.dtype:
         return np.dtype(np.uint8)
     elif bit_depth == 16:
         return np.dtype(np.uint16)
+    elif bit_depth == 32:
+        return np.dtype(np.float32)
     else:
-        raise ValidationError(f"Unsupported bit depth: {bit_depth}, must be 8 or 16")
+        raise ValidationError(f"Unsupported bit depth: {bit_depth}, must be 8, 16, or 32")
 
 
 def convert_bit_depth(

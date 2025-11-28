@@ -34,6 +34,9 @@ def create_processor(config: ApplicationConfig) -> BaseProcessor:
     elif config.model_config.mode == ProcessingMode.LARGE:
         from heightcraft.processors.large_model_processor import LargeModelProcessor
         return LargeModelProcessor(config)
+    elif config.model_config.mode == ProcessingMode.LIDAR:
+        from heightcraft.processors.lidar_processor import LidarProcessor
+        return LidarProcessor(config)
     else:
         # Default to standard processor
         from heightcraft.processors.standard_processor import StandardProcessor
