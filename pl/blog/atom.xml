@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="atom.xsl"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://andre-silva-14.github.io/heightcraft/pl/blog</id>
+    <title>Heightcraft Blog</title>
+    <updated>2025-11-29T00:00:00.000Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://andre-silva-14.github.io/heightcraft/pl/blog"/>
+    <subtitle>Heightcraft Blog</subtitle>
+    <icon>https://andre-silva-14.github.io/heightcraft/pl/img/logo-neon.png</icon>
+    <entry>
+        <title type="html"><![CDATA[Training Custom AI Models for Heightmap Upscaling]]></title>
+        <id>https://andre-silva-14.github.io/heightcraft/pl/blog/training-and-upscaling</id>
+        <link href="https://andre-silva-14.github.io/heightcraft/pl/blog/training-and-upscaling"/>
+        <updated>2025-11-29T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[In this post, we'll dive into one of Heightcraft's most powerful features: Training custom AI upscaling models.]]></summary>
+        <content type="html"><![CDATA[<p>In this post, we'll dive into one of Heightcraft's most powerful features: <strong>Training custom AI upscaling models</strong>.</p>
+<p>While Heightcraft comes with a general-purpose model, training on your specific type of terrain (e.g., rocky mountains, sand dunes, or urban landscapes) can yield significantly better results.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-train-a-custom-model">Why Train a Custom Model?<a href="https://andre-silva-14.github.io/heightcraft/pl/blog/training-and-upscaling#why-train-a-custom-model" class="hash-link" aria-label="Bezpośredni link do Why Train a Custom Model?" title="Bezpośredni link do Why Train a Custom Model?" translate="no">​</a></h2>
+<p>The default model is trained on a diverse dataset of DEMs (Digital Elevation Models). However, terrain features vary wildly. A model trained on Swiss Alps data might not perform well on Martian crater data.</p>
+<p>By training a custom model, you teach the AI to hallucinate details specific to your target biome.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="step-1-prepare-your-dataset">Step 1: Prepare Your Dataset<a href="https://andre-silva-14.github.io/heightcraft/pl/blog/training-and-upscaling#step-1-prepare-your-dataset" class="hash-link" aria-label="Bezpośredni link do Step 1: Prepare Your Dataset" title="Bezpośredni link do Step 1: Prepare Your Dataset" translate="no">​</a></h2>
+<p>You need a set of high-resolution heightmaps. These will be the "ground truth".</p>
+<ul>
+<li class=""><strong>Format</strong>: <code>.tiff</code> or <code>.png</code> (16-bit or 32-bit preferred).</li>
+<li class=""><strong>Structure</strong>: Place them all in a single directory.</li>
+</ul>
+<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#F8F8F2;--prism-background-color:#282A36"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#F8F8F2;background-color:#282A36"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#F8F8F2"><span class="token plain">mkdir my_dataset</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">cp /path/to/high_res_tiffs/*.tiff my_dataset/</span><br></span></code></pre></div></div>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="step-2-run-training">Step 2: Run Training<a href="https://andre-silva-14.github.io/heightcraft/pl/blog/training-and-upscaling#step-2-run-training" class="hash-link" aria-label="Bezpośredni link do Step 2: Run Training" title="Bezpośredni link do Step 2: Run Training" translate="no">​</a></h2>
+<p>Use the <code>--train</code> flag to start the training process. Heightcraft handles data augmentation and splitting automatically.</p>
+<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#F8F8F2;--prism-background-color:#282A36"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#F8F8F2;background-color:#282A36"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#F8F8F2"><span class="token plain">heightcraft --train \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --dataset_path ./my_dataset \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --epochs 50 \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --batch_size 16 \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --learning_rate 0.0001 \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --pretrained_model my_custom_model.h5</span><br></span></code></pre></div></div>
+<ul>
+<li class=""><code>--epochs</code>: How many times to iterate over the dataset. 50-100 is usually good.</li>
+<li class=""><code>--pretrained_model</code>: The output path for your new model.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="step-3-upscale-with-your-model">Step 3: Upscale with Your Model<a href="https://andre-silva-14.github.io/heightcraft/pl/blog/training-and-upscaling#step-3-upscale-with-your-model" class="hash-link" aria-label="Bezpośredni link do Step 3: Upscale with Your Model" title="Bezpośredni link do Step 3: Upscale with Your Model" translate="no">​</a></h2>
+<p>Once training is complete, you can use your new model to upscale low-resolution inputs.</p>
+<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#F8F8F2;--prism-background-color:#282A36"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#F8F8F2;background-color:#282A36"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#F8F8F2"><span class="token plain">heightcraft low_res_input.png \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --upscale \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --pretrained_model my_custom_model.h5 \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --upscale_factor 4 \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --output_path high_res_output.png</span><br></span></code></pre></div></div>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="results">Results<a href="https://andre-silva-14.github.io/heightcraft/pl/blog/training-and-upscaling#results" class="hash-link" aria-label="Bezpośredni link do Results" title="Bezpośredni link do Results" translate="no">​</a></h2>
+<p>You should see sharper edges and more plausible details compared to bicubic interpolation or the generic model.</p>
+<p>Happy upscaling! 🚀</p>]]></content>
+        <author>
+            <name>Heightcraft Team</name>
+            <uri>https://github.com/andre-silva-14/heightcraft</uri>
+        </author>
+        <category label="AI" term="AI"/>
+        <category label="Upscaling" term="Upscaling"/>
+        <category label="Tutorial" term="Tutorial"/>
+        <category label="Heightmap" term="Heightmap"/>
+    </entry>
+</feed>

@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkdocs=globalThis.webpackChunkdocs||[]).push([[1903],{1912:t=>{t.exports=JSON.parse('{"blogBasePath":"/heightcraft/pt-PT/blog","blogTitle":"Blog","authorsListPath":"/heightcraft/pt-PT/blog/authors"}')}}]);

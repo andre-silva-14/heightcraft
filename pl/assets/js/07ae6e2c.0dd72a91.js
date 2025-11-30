@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkdocs=globalThis.webpackChunkdocs||[]).push([[9456],{3621:e=>{e.exports=JSON.parse('{"authors":[{"name":"Heightcraft Team","title":"Core Developers","url":"https://github.com/andre-silva-14/heightcraft","imageURL":"https://andre-silva-14.github.io/heightcraft/img/logo-neon.png","key":"heightcraft-team","page":null,"count":1}]}')}}]);
