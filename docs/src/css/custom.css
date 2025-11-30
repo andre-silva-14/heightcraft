@@ -1,0 +1,308 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+:root {
+  /* Brand Colors */
+  --ifm-color-primary: #4e95ff;
+  --ifm-color-primary-dark: #2d81ff;
+  --ifm-color-primary-darker: #1c76ff;
+  --ifm-color-primary-darkest: #0062f4;
+  --ifm-color-primary-light: #6fa9ff;
+  --ifm-color-primary-lighter: #80b3ff;
+  --ifm-color-primary-lightest: #b3d1ff;
+
+  /* Fonts */
+  --ifm-font-family-base: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  --ifm-font-family-monospace: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --ifm-code-font-size: 90%;
+
+  /* Light Mode Glass Variables */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --glass-blur: 12px;
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  --hero-gradient: linear-gradient(-45deg, #ffffff, #f0f4f8, #e1e8ed, #ffffff);
+}
+
+/* Dark Mode Overrides */
+[data-theme='dark'] {
+  /* Dark Mode Glass Variables */
+  --glass-bg: rgba(20, 20, 25, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --hero-gradient: linear-gradient(-45deg, #0b0c10, #1f2833, #1c2331, #0f172a);
+
+  /* Docusaurus handles background colors natively, so we don't override --ifm-background-color here */
+}
+
+/* Glassmorphism for Navbar */
+.navbar {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Glassmorphism for Sidebar */
+.theme-doc-sidebar-container {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--glass-blur));
+  border-right: 1px solid var(--glass-border);
+}
+
+/* Glassmorphism for Cards/Blocks */
+.card,
+.hero {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+}
+
+/* Hero Section Gradient Animation */
+@keyframes gradientBG {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.hero {
+  background:
+    linear-gradient(rgba(11, 12, 16, 0.8), rgba(11, 12, 16, 0.8)),
+    url('../../static/img/hero-bg.png');
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 50% 50%, var(--ifm-color-primary-light), transparent 70%);
+  opacity: 0.15;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hero .container {
+  position: relative;
+  z-index: 2;
+}
+
+/* Buttons */
+.button--primary,
+.button--secondary {
+  /* Added button--secondary to target "Get Started" */
+  background: linear-gradient(90deg, var(--ifm-color-primary) 0%, var(--ifm-color-primary-dark) 100%);
+  border: none;
+  border-radius: 50px;
+  /* Rounded pill shape */
+  padding: 12px 32px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 15px rgba(78, 149, 255, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+  color: white !important;
+  /* Force white text */
+  position: relative;
+  overflow: hidden;
+}
+
+.button--primary:hover,
+.button--secondary:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 0 25px rgba(78, 149, 255, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.4);
+  text-decoration: none;
+  background: linear-gradient(90deg, var(--ifm-color-primary-dark) 0%, var(--ifm-color-primary) 100%);
+}
+
+/* Search Button Styling */
+.navbar__search-input,
+.DocSearch-Button {
+  border-radius: 50px !important;
+  background-color: rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s ease;
+  padding: 0 12px;
+  /* Ensure padding for rounded shape */
+}
+
+[data-theme='dark'] .navbar__search-input,
+[data-theme='dark'] .DocSearch-Button {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.navbar__search-input:focus,
+.DocSearch-Button:hover,
+.DocSearch-Button:focus {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-color: var(--ifm-color-primary);
+  box-shadow: 0 0 10px rgba(78, 149, 255, 0.3);
+}
+
+[data-theme='dark'] .navbar__search-input:focus,
+[data-theme='dark'] .DocSearch-Button:hover,
+[data-theme='dark'] .DocSearch-Button:focus {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Feature Images - Target by attribute since module class is hashed */
+img[alt="AI Upscaling"],
+img[alt="LiDAR Streaming"],
+img[alt="Mesh Baking"] {
+  border-radius: 24px;
+  box-shadow: 0 0 20px rgba(78, 149, 255, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+img[alt="AI Upscaling"]:hover,
+img[alt="LiDAR Streaming"]:hover,
+img[alt="Mesh Baking"]:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 30px rgba(78, 149, 255, 0.6);
+}
+
+/* Navbar Logo */
+.navbar__logo img {
+  border-radius: 12px;
+  transition: transform 0.3s ease;
+}
+
+.navbar__logo img:hover {
+  transform: rotate(-5deg) scale(1.1);
+}
+
+/* Code Block Styling */
+.theme-code-block {
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+/* Mac-like Window Controls */
+.theme-code-block::before {
+  content: '';
+  display: block;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.05);
+  /* Subtle background */
+  border-bottom: 1px solid var(--glass-border);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='54' height='14' viewBox='0 0 54 14'%3E%3Cg fill='none' fill-rule='evenodd' transform='translate(1 1)'%3E%3Ccircle cx='6' cy='6' r='6' fill='%23FF5F56' stroke='%23E0443E' stroke-width='.5'/%3E%3Ccircle cx='26' cy='6' r='6' fill='%23FFBD2E' stroke='%23DEA123' stroke-width='.5'/%3E%3Ccircle cx='46' cy='6' r='6' fill='%2327C93F' stroke='%231AAB29' stroke-width='.5'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 16px center;
+}
+
+[data-theme='dark'] .theme-code-block::before {
+  background-color: rgba(0, 0, 0, 0.2);
+  /* Darker in dark mode */
+}
+
+/* Adjust code padding to account for header */
+.theme-code-block pre {
+  padding-top: 16px;
+  background: transparent !important;
+}
+
+/* Typography */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+
+/* Navbar Link Contrast */
+.navbar__link {
+  font-weight: 500;
+  color: var(--ifm-font-color-base);
+}
+
+[data-theme='dark'] .navbar__link {
+  color: #e3e3e3;
+}
+
+[data-theme='dark'] .navbar__link:hover,
+[data-theme='dark'] .navbar__link--active {
+  color: var(--ifm-color-primary);
+}
+
+/* Hero Text Contrast */
+.hero__title {
+  color: var(--ifm-color-primary-darkest);
+}
+
+[data-theme='dark'] .hero__title {
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.hero__subtitle {
+  color: #4a5568;
+}
+
+[data-theme='dark'] .hero__subtitle {
+  color: #a0aec0;
+}
+
+/* Admonitions */
+.alert {
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.alert--info {
+  background-color: rgba(78, 149, 255, 0.1);
+  border-color: rgba(78, 149, 255, 0.3);
+  color: var(--ifm-font-color-base);
+}
+
+.alert--success {
+  background-color: rgba(0, 200, 83, 0.1);
+  border-color: rgba(0, 200, 83, 0.3);
+  color: var(--ifm-font-color-base);
+}
+
+.alert--warning {
+  background-color: rgba(255, 171, 0, 0.1);
+  border-color: rgba(255, 171, 0, 0.3);
+  color: var(--ifm-font-color-base);
+}
+
+.alert--danger {
+  background-color: rgba(255, 23, 68, 0.1);
+  border-color: rgba(255, 23, 68, 0.3);
+  color: var(--ifm-font-color-base);
+}
+
+.docusaurus-highlight-code-line {
+  background-color: rgba(0, 0, 0, 0.1);
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+}

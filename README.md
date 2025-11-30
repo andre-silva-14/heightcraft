@@ -1,218 +1,73 @@
-# 🗺️ Heightcraft
+<div align="center">
+  <img src=".github/assets/banner.png" alt="Heightcraft Banner" width="60%" />
+  
+  **AI-Powered Heightmap Generation & Upscaling Tool**
 
-Transform your 3D models into super detailed height maps with Heightcraft - a powerful and flexible height map generator that supports multiple formats and advanced processing options.
+  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
+[![Documentation](https://img.shields.io/badge/docs-docusaurus-green)](./docs)
+[![Coverage](https://img.shields.io/badge/coverage-70%25-yellow)](./tests)
+</div>
 
-## ✨ Features
 
-- 🎮 GPU-accelerated processing for lightning-fast generation
-- 🎯 Smart resolution calculation based on model proportions
-- 🎨 High-precision output (8-bit or 16-bit depth)
-- 🧩 Split large maps into manageable pieces
-- 🔍 AI-powered upscaling for enhanced detail
-- 💾 Memory-efficient processing for large models
-- 🚀 Multi-threaded CPU processing
-- 🔄 Intelligent caching system for faster repeated processing
-- 📊 Memory usage monitoring and optimization
-- 🛡️ Robust error handling and resource cleanup
 
-## 🔧 Supported 3D Model Formats
+**Heightcraft** is a high-performance CLI tool designed for **Game Engineers**, **GIS Professionals**, and **Researchers**. It automates the pipeline of converting 3D data into high-precision heightmaps, featuring accessible **AI Upscaling**.
 
-- STL (Standard Triangle Language)
-- OBJ (Wavefront Object)
-- PLY (Polygon File Format)
-- GLB (GL Transmission Binary Format)
-- GLTF (GL Transmission Format)
+---
+
+## 🚀 Key Features
+
+- **🤖 AI Upscaling**: Transform low-res inputs into crisp, high-detail heightmaps. Increase bit depth (8-bit → 16/32-bit) with AI hallucination.
+- **📡 LiDAR Support**: Stream process massive `.las` and `.laz` point clouds into Digital Elevation Models (DEMs).
+- **🏔️ Mesh to Heightmap**: Bake `.gltf`, `.glb`, `.obj`, `.stl`, and `.ply` meshes into heightmaps with automated chunking.
+- **🎯 High Precision**: Native support for **32-bit Float TIFF**, **16-bit PNG**, and **RAW** formats.
+- **⚡ Performance**: GPU acceleration and memory-efficient streaming for gigabyte-scale datasets.
+
+## 📖 Documentation
+
+Full documentation is available in the [`docs`](https://andre-silva-14.github.io/heightcraft/) directory.
+
+- [**Getting Started**](https://andre-silva-14.github.io/heightcraft/docs/getting-started)
+- [**AI Upscaling Deep Dive**](https://andre-silva-14.github.io/heightcraft/docs/guides/ai-upscaling)
+- [**LiDAR Processing**](https://andre-silva-14.github.io/heightcraft/docs/guides/lidar-processing)
+- [**Mesh Processing**](https://andre-silva-14.github.io/heightcraft/docs/guides/mesh-processing)
 
 ## 📦 Installation
 
-This project uses [uv](https://github.com/astral-sh/uv) for dependency management. Here's how to get started:
-
-1. Install uv using pipx (recommended):
 ```bash
-pipx install uv
+pip install heightcraft
 ```
 
-2. Create a virtual environment and install dependencies:
+## ⚡ Quick Start
+
+**Upscale an image (8-bit → 16-bit and 3x upscale):**
 ```bash
-uv venv
-source .venv/bin/activate  # On Unix/macOS
-.venv\Scripts\activate     # On Windows
-uv sync
+heightcraft input.png --upscale --upscale-factor 3 --bit_depth 16 --output_path high_res.png
 ```
 
-For development setup:
+**Process LiDAR data:**
 ```bash
-uv sync --group dev
+heightcraft scan.laz --bit_depth 32 --output_path dem.tiff
 ```
 
-## 🚀 Usage
-
-### Basic Usage
-
-Generate a height map with default settings:
-
-```shellscript
-python main.py path/to/model.obj
+**Convert a 3D Mesh:**
+```bash
+heightcraft terrain.obj --large-model --chunk_size 200000 --max_resolution 8192 --upscale
 ```
-
-### Output Options
-
-Customize the output file (Default: height_map.png):
-
-```shellscript
-python main.py path/to/model.obj --output_path my_heightmap.png
-```
-
-Set the maximum resolution (Default: 256):
-
-```shellscript
-python main.py path/to/model.obj --max_resolution 512
-```
-
-Choose bit depth - 8 or 16 (Default: 16):
-
-```shellscript
-python main.py path/to/model.obj --bit_depth 8
-```
-
-### Processing Options
-
-Use GPU acceleration:
-
-```shellscript
-python main.py path/to/model.obj --use_gpu
-```
-
-Adjust sampling density (Default: 100000):
-
-```shellscript
-python main.py path/to/model.obj --num_samples 200000
-```
-
-Set CPU thread count (Default: 4):
-
-```shellscript
-python main.py path/to/model.obj --num_threads 8
-```
-
-### Advanced Features
-
-### Splitting
-
-Split output into multiple files:
-
-```shellscript
-python main.py path/to/model.obj --split 4  # Splits into 2x2 grid
-python main.py path/to/model.obj --split 9  # Splits into 3x3 grid
-```
-
-
-### Large Model Processing
-
-Handle large models efficiently (default `chunk_size` is 1000000):
-
-```shellscript
-python main.py path/to/large_model.obj --large_model --chunk_size 1500000
-```
-
-### Memory Management
-
-Control memory usage (Default: 80% of available memory):
-
-```shellscript
-python main.py path/to/model.obj --max_memory 0.6
-```
-
-Specify cache directory for faster repeated processing (default: `.cache` in current directory):
-
-```shellscript
-python main.py path/to/model.obj --cache_dir ./cache
-```
-
-### AI Upscaling
-
-Enable AI upscaling:
-
-```shellscript
-python main.py path/to/model.obj --upscale --upscale_factor 2
-```
-
-Use a pretrained upscaling model (without one, bicubic interpolation is used):
-
-```shellscript
-python main.py path/to/model.obj --upscale --pretrained_model path/to/model.h5
-```
-
-### Training a Custom Model
-
-You can train your own upscaling model using a dataset of high-resolution height maps (images, for example from https://tangrams.github.io/heightmapper/).
-
-```shellscript
-python main.py --train --dataset_path path/to/images_folder --epochs 50 --batch_size 16 --pretrained_model my_model.h5
-```
-
-Arguments:
-*   `--dataset_path`: Path to a folder containing high-res images (PNG, JPG, TIF).
-*   `--pretrained_model`: Path to save the trained model (default: trained_model.h5).
-
-**Hyperparameters:**
-
-*   `--epochs` (Default: 10): How many times the AI sees the entire dataset.
-    *   *Effect:* Higher values (e.g., 50-100) generally lead to better quality but take longer. If set too high, the model might "memorize" the training data (overfitting) and perform poorly on new maps.
-*   `--batch_size` (Default: 16): How many images are processed at once.
-    *   *Effect:* Larger batches (32, 64) speed up training but require more GPU memory. Smaller batches (4, 8) are slower but offer more stable updates.
-*   `--learning_rate` (Default: 0.0001): How fast the AI adapts its internal weights.
-    *   *Effect:* A higher rate (e.g., 0.001) learns faster but might miss the optimal solution (unstable). A lower rate (e.g., 0.00001) is more precise but takes much longer to converge.
-
-**Example Tuning:**
-*   *For quick testing:* `--epochs 5 --batch_size 8`
-*   *For high quality:* `--epochs 100 --learning_rate 0.00005`
-
-## 🔄 Complete Example
-
-Generate a high-resolution height map with GPU acceleration, upscaling, and splitting:
-
-```shellscript
-python main.py model.obj \
-  --output_path detailed_map.png \
-  --max_resolution 1024 \
-  --use_gpu \
-  --num_samples 1000000 \
-  --upscale \
-  --pretrained_model path/to/model.h5 \
-  --split 4 \
-  --max_memory 0.7 \
-  --cache_dir ./cache
-```
-
 
 ## Development
 
 To install development dependencies:
 ```bash
-uv pip install -e ".[dev]"
+pipx install uv
+uv sync --group dev
+uv run main.py
 ```
-
 
 ## 🧪 Testing
 
 Run the test suite:
 
-```shellscript
+```bash
 pytest tests
 ```
-
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit issues and pull requests. When contributing:
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
