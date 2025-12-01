@@ -176,6 +176,9 @@ class StandardProcessor(BaseProcessor):
             # Create PointCloud domain object
             point_cloud = PointCloud(self.points)
             
+            # Update bounds from point cloud
+            self.bounds = point_cloud.bounds
+            
             # Generate height map using HeightMapService
             height_map_obj = self.height_map_service.generate_from_point_cloud(
                 point_cloud,
@@ -251,7 +254,45 @@ class StandardProcessor(BaseProcessor):
             # Create HeightMap domain object
             height_map = HeightMap(self.height_map, self.height_map_config.bit_depth)
             
-            # Handle splitting
+            # Apply Sea Level
+            if self.height_map_config.sea_level is not None:
+                # Convert world sea level to normalized sea level
+                min_z = self.bounds.get("min_z", 0.0)
+                max_z = self.bounds.get("max_z", 1.0)
+                z_range = max_z - min_z
+                
+                if z_range <= 1e-9:
+                    normalized_sea_level = 0.0
+                else:
+                    normalized_sea_level = (self.height_map_config.sea_level - min_z) / z_range
+                
+                self.logger.info(f"Applying sea level masking at {self.height_map_config.sea_level} (normalized: {normalized_sea_level:.4f})")
+                
+                height_map, water_mask = self.height_map_service.apply_sea_level(
+                    height_map, normalized_sea_level
+                )
+                
+                # Save water mask
+                mask_path = self._derive_output_path(output_path, "water_mask")
+                self.logger.info(f"Saving water mask to {mask_path}")
+                self.height_map_service.save_height_map(water_mask, mask_path)
+            
+            # Generate Slope Map
+            if self.height_map_config.slope_map:
+                self.logger.info("Generating slope map")
+                slope_map = self.height_map_service.generate_slope_map(height_map)
+                slope_path = self._derive_output_path(output_path, "slope_map")
+                self.logger.info(f"Saving slope map to {slope_path}")
+                self.height_map_service.save_height_map(slope_map, slope_path)
+                
+            # Generate Curvature Map
+            if self.height_map_config.curvature_map:
+                self.logger.info("Generating curvature map")
+                curvature_map = self.height_map_service.generate_curvature_map(height_map)
+                curvature_path = self._derive_output_path(output_path, "curvature_map")
+                self.logger.info(f"Saving curvature map to {curvature_path}")
+                self.height_map_service.save_height_map(curvature_map, curvature_path)
+            
             # Handle splitting
             if self.height_map_config.split > 1:
                 # Split height map using service (handles grid size calculation)
@@ -268,6 +309,20 @@ class StandardProcessor(BaseProcessor):
                 
         except Exception as e:
             raise ProcessingError(f"Failed to save height map: {e}")
+
+    def _derive_output_path(self, base_path: str, suffix: str) -> str:
+        """
+        Derive an output path with a suffix.
+        
+        Args:
+            base_path: The base output path.
+            suffix: The suffix to add (e.g., "slope_map").
+            
+        Returns:
+            The derived path.
+        """
+        path = Path(base_path)
+        return str(path.parent / f"{path.stem}_{suffix}{path.suffix}")
     
     def cleanup(self) -> None:
         """Clean up resources."""

@@ -10,12 +10,11 @@ import logging
 import sys
 from typing import Dict, List, Optional
 
-import pytest
+
 
 from heightcraft.cli.argument_parser import parse_arguments, validate_arguments
 from heightcraft.core.config import ApplicationConfig
 from heightcraft.core.exceptions import HeightcraftError
-from heightcraft.processors import create_processor
 from heightcraft.core.logging import setup_logging
 
 
@@ -66,6 +65,8 @@ class GenerateHeightMapCommand(Command):
             config = ApplicationConfig.from_dict(self.args)
             
             # Create processor
+            # Lazy import to avoid heavy dependencies at startup
+            from heightcraft.processors import create_processor
             processor = create_processor(config)
             
             # Process model
@@ -83,32 +84,7 @@ class GenerateHeightMapCommand(Command):
             return 2
 
 
-class RunTestsCommand(Command):
-    """Command to run tests."""
-    
-    def __init__(self, test_args: Optional[List[str]] = None):
-        """
-        Initialize the command.
-        
-        Args:
-            test_args: Arguments to pass to pytest
-        """
-        self.test_args = test_args or ["-v", "tests"]
-        self.logger = logging.getLogger(self.__class__.__name__)
-    
-    def execute(self) -> int:
-        """
-        Execute the command.
-        
-        Returns:
-            Exit code (0 for success, non-zero for failure)
-        """
-        try:
-            self.logger.info(f"Running tests with arguments: {self.test_args}")
-            return pytest.main(self.test_args)
-        except Exception as e:
-            self.logger.exception(f"Error running tests: {e}")
-            return 2
+
 
 class TrainUpscalerCommand(Command):
     """Command to train an upscaling model."""
@@ -182,9 +158,8 @@ def create_command(args: Optional[List[str]] = None) -> Command:
     logging.debug(f"CLI main called with arguments: {parsed_args}")
     
     # Create command
-    if parsed_args.get("test", False):
-        return RunTestsCommand()
-    elif parsed_args.get("train", False):
+
+    if parsed_args.get("train", False):
         return TrainUpscalerCommand(parsed_args)
     else:
         return GenerateHeightMapCommand(parsed_args)

@@ -111,6 +111,24 @@ def create_parser() -> argparse.ArgumentParser:
         help="Number of threads for parallel processing on CPU.",
     )
     
+    # Masking & Texture Options
+    masking_group = parser.add_argument_group("Masking & Texture Options")
+    masking_group.add_argument(
+        "--sea_level",
+        type=float,
+        help="Z-plane cut level. Values below this are flattened. Optionally exports water_mask.png.",
+    )
+    masking_group.add_argument(
+        "--slope_map",
+        action="store_true",
+        help="Generate slope_map.png (white=steep, black=flat).",
+    )
+    masking_group.add_argument(
+        "--curvature_map",
+        action="store_true",
+        help="Generate curvature_map.png (convex/concave).",
+    )
+
     # Large model options
     large_model_group = parser.add_argument_group("Large Model Options")
     large_model_group.add_argument(
@@ -189,11 +207,7 @@ def create_parser() -> argparse.ArgumentParser:
     
     # Miscellaneous options
     misc_group = parser.add_argument_group("Miscellaneous Options")
-    misc_group.add_argument(
-        "--test",
-        action="store_true",
-        help="Run tests instead of generating a height map.",
-    )
+
     misc_group.add_argument(
         "--verbose", "-v",
         action="count",

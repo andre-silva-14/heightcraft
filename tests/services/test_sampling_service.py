@@ -196,4 +196,36 @@ class TestSamplingService(BaseTestCase):
         
         # Try to sample points
         with self.assertRaises(SamplingError):
-            self.sampling_service.sample_points(self.test_mesh, 10, use_gpu=False) 
+            self.sampling_service.sample_points(self.test_mesh, 10, use_gpu=False)
+
+    def test_sample_with_threads_worker_exception(self) -> None:
+        """Test handling of exceptions in worker threads."""
+        # Mock _sample_points_cpu to raise an exception
+        self.sampling_service._sample_points_cpu = Mock(side_effect=Exception("Worker failed"))
+        
+        with self.assertRaises(SamplingError):
+            self.sampling_service.sample_with_threads(self.test_mesh, 1000, 4)
+
+    def test_sample_with_threads_empty_result(self) -> None:
+        """Test handling of empty results from threads."""
+        # Mock _sample_points_cpu to return empty array
+        self.sampling_service._sample_points_cpu = Mock(return_value=np.array([]))
+        
+        with self.assertRaises(SamplingError):
+            self.sampling_service.sample_with_threads(self.test_mesh, 1000, 4)
+
+    @patch.dict('sys.modules', {'torch': None})
+    def test_gpu_sampling_no_torch(self) -> None:
+        """Test GPU sampling fallback when torch is not available."""
+        # Ensure has_gpu is True so it tries to enter the GPU block
+        with patch('heightcraft.services.sampling_service.gpu_manager') as mock_gpu:
+            mock_gpu.has_gpu = True
+            
+            # Mock CPU sampling to verify fallback
+            self.sampling_service._sample_points_cpu = Mock(return_value=np.array([[1, 2, 3]]))
+            
+            # This should trigger the ImportError inside _sample_points_gpu
+            result = self.sampling_service._sample_points_gpu(self.test_mesh, 10)
+            
+            self.sampling_service._sample_points_cpu.assert_called()
+            np.testing.assert_array_equal(result, np.array([[1, 2, 3]])) 

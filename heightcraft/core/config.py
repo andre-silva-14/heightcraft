@@ -89,6 +89,9 @@ class HeightMapConfig:
     bit_depth: int = 16
     split: int = 1
     optimize_grid: bool = True
+    sea_level: Optional[float] = None
+    slope_map: bool = False
+    curvature_map: bool = False
     
     def __post_init__(self):
         """Validate configuration values."""
@@ -165,15 +168,16 @@ class ApplicationConfig:
         """
         # Model config
         file_path = args.get('file_path')
-        file_extension = os.path.splitext(file_path)[1].lower()
         mode = ProcessingMode.STANDARD
         
         if args.get('large_model'):
             mode = ProcessingMode.LARGE
-        elif file_path and file_extension in ['.las', '.laz']:
-            mode = ProcessingMode.LIDAR
-        elif file_path and file_extension in ['.png', '.jpg', '.jpeg', '.tif', '.tiff', '.raw']:
-            mode = ProcessingMode.IMAGE
+        elif file_path:
+            file_extension = os.path.splitext(file_path)[1].lower()
+            if file_extension in ['.las', '.laz']:
+                mode = ProcessingMode.LIDAR
+            elif file_extension in ['.png', '.jpg', '.jpeg', '.tif', '.tiff', '.raw']:
+                mode = ProcessingMode.IMAGE
             
         model_config = ModelConfig(
             file_path=file_path,
@@ -194,7 +198,10 @@ class ApplicationConfig:
         height_map_config = HeightMapConfig(
             max_resolution=args.get('max_resolution', 1024),
             bit_depth=bit_depth,
-            split=args.get('split', 1)
+            split=args.get('split', 1),
+            sea_level=args.get('sea_level'),
+            slope_map=args.get('slope_map', False),
+            curvature_map=args.get('curvature_map', False)
         )
         
         # Output config

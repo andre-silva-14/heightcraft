@@ -510,4 +510,92 @@ class HeightMapService:
             # Create a new height map with the equalized data
             return HeightMap(equalized_data.astype(np.float32), height_map.bit_depth)
         except Exception as e:
-            raise HeightMapServiceError(f"Failed to equalize histogram: {str(e)}") 
+            raise HeightMapServiceError(f"Failed to equalize histogram: {str(e)}")
+
+    def apply_sea_level(self, height_map: HeightMap, sea_level: float) -> Tuple[HeightMap, HeightMap]:
+        """
+        Apply sea level masking.
+        
+        Args:
+            height_map: The height map.
+            sea_level: The Z-value for sea level.
+            
+        Returns:
+            Tuple of (modified height map, water mask height map).
+            
+        Raises:
+            HeightMapServiceError: If masking fails.
+        """
+        try:
+            data = height_map.data.copy()
+            
+            # Create mask (1 where water, 0 where land)
+            water_mask = (data < sea_level).astype(np.float32)
+            
+            # Flatten values below sea level
+            data[data < sea_level] = sea_level
+            
+            return (
+                HeightMap(data, height_map.bit_depth),
+                HeightMap(water_mask, 8)  # 8-bit for mask is sufficient
+            )
+        except Exception as e:
+            raise HeightMapServiceError(f"Failed to apply sea level: {str(e)}")
+
+    def generate_slope_map(self, height_map: HeightMap) -> HeightMap:
+        """
+        Generate a slope map.
+        
+        Args:
+            height_map: The height map.
+            
+        Returns:
+            A slope map (normalized 0-1).
+            
+        Raises:
+            HeightMapServiceError: If generation fails.
+        """
+        try:
+            # Calculate gradients
+            dy, dx = np.gradient(height_map.data)
+            
+            # Calculate slope magnitude
+            slope = np.sqrt(dx**2 + dy**2)
+            
+            # Normalize to 0-1 range for visualization
+            if slope.max() > slope.min():
+                slope = (slope - slope.min()) / (slope.max() - slope.min())
+            else:
+                slope = np.zeros_like(slope)
+                
+            return HeightMap(slope.astype(np.float32), 8)
+        except Exception as e:
+            raise HeightMapServiceError(f"Failed to generate slope map: {str(e)}")
+
+    def generate_curvature_map(self, height_map: HeightMap) -> HeightMap:
+        """
+        Generate a curvature map.
+        
+        Args:
+            height_map: The height map.
+            
+        Returns:
+            A curvature map (normalized 0-1).
+            
+        Raises:
+            HeightMapServiceError: If generation fails.
+        """
+        try:
+            # Calculate Laplacian
+            curvature = ndimage.laplace(height_map.data)
+            
+            # Normalize to 0-1 range (0.5 is flat)
+            # Convex/concave will be above/below 0.5
+            if curvature.max() > curvature.min():
+                curvature = (curvature - curvature.min()) / (curvature.max() - curvature.min())
+            else:
+                curvature = np.full_like(curvature, 0.5)
+                
+            return HeightMap(curvature.astype(np.float32), 8)
+        except Exception as e:
+            raise HeightMapServiceError(f"Failed to generate curvature map: {str(e)}") 

@@ -169,7 +169,8 @@ class LargeModelProcessor(BaseProcessor):
                         self.chunks.append({
                             "vertices": len(self.vertex_buffer) - len(vertex_chunks),
                             "vertex_count": len(vertex_chunks),
-                            "faces": offset_chunk
+                            "faces": offset_chunk,
+                            "vertex_offset": vertex_offset
                         })
                     
                     # Update vertex offset
@@ -224,7 +225,8 @@ class LargeModelProcessor(BaseProcessor):
                 self.chunks.append({
                     "vertices": 0,
                     "vertex_count": len(vertex_chunks),
-                    "faces": chunk
+                    "faces": chunk,
+                    "vertex_offset": 0
                 })
             
             # Create a mesh from the first chunks for validation and bounds
@@ -346,7 +348,7 @@ class LargeModelProcessor(BaseProcessor):
                 
                 # Create a mesh for this chunk
                 vertices = np.vstack(self.vertex_buffer[chunk["vertices"]:chunk["vertices"] + chunk["vertex_count"]])
-                faces = chunk["faces"]
+                faces = chunk["faces"] - chunk["vertex_offset"]
                 chunk_mesh = Mesh(trimesh.Trimesh(vertices=vertices, faces=faces))
                 
                 # Sample points
@@ -391,7 +393,7 @@ class LargeModelProcessor(BaseProcessor):
                 continue
                 
             vertices = np.vstack(chunk_vertices_arrays)
-            faces = chunk["faces"]
+            faces = chunk["faces"] - chunk["vertex_offset"]
             
             # Create a temporary mesh for area calculation
             # We use trimesh directly to avoid overhead
@@ -441,7 +443,7 @@ class LargeModelProcessor(BaseProcessor):
                     continue
                     
                 vertices = np.vstack(chunk_vertices_arrays)
-                faces = chunk["faces"]
+                faces = chunk["faces"] - chunk["vertex_offset"]
                 
                 # Create temporary mesh
                 chunk_mesh = Mesh(trimesh.Trimesh(vertices=vertices, faces=faces))

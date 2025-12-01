@@ -115,7 +115,7 @@ class TestLargeModelProcessor(unittest.TestCase):
     def test_sample_points(self):
         """Test sampling points."""
         # Setup processor state
-        self.processor.chunks = [{'vertices': 0, 'vertex_count': 1, 'faces': np.array([[0, 1, 2]])}]
+        self.processor.chunks = [{'vertices': 0, 'vertex_count': 1, 'faces': np.array([[0, 1, 2]]), 'vertex_offset': 0}]
         self.processor.vertex_buffer = [np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]])]
         
         # Mock sampling service response

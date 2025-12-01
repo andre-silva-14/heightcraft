@@ -47,7 +47,8 @@ def normalize_array(
         return np.full_like(array, (target_min + target_max) / 2)
     
     # Normalize
-    normalized = (array - source_min) / (source_max - source_min)
+    # Cast to float to avoid integer overflow
+    normalized = (array.astype(float) - float(source_min)) / (float(source_max) - float(source_min))
     
     # Scale to target range
     return normalized * (target_max - target_min) + target_min
@@ -209,8 +210,6 @@ def ensure_shape(
     Returns:
         Reshaped array
     """
-    from numpy.lib.arraypad import _validate_lengths
-    
     # Check if reshaping is needed
     if array.shape == shape:
         return array
