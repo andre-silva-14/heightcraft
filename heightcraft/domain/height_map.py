@@ -507,6 +507,13 @@ class HeightMap:
                 from PIL import Image
                 img = Image.open(file_path)
                 
+                # Convert to grayscale if not already
+                if img.mode not in ['L', 'I', 'I;16', 'F']:
+                    # Convert to grayscale
+                    # Use 'L' for 8-bit, 'I;16' for 16-bit source if possible?
+                    # PIL conversion to 'L' uses standard weights.
+                    img = img.convert('L')
+                
                 # Convert to numpy array
                 data = np.array(img)
                 
@@ -521,17 +528,6 @@ class HeightMap:
                     else:
                         # Default to 8-bit if unknown
                         bit_depth = 8
-                
-                # Normalize to [0, 1] range based on bit depth
-                # HeightMap expects normalized float data in [0, 1] range?
-                # Let's check __init__.
-                # __init__ validates data and normalizes it if min < 0 or max > 1.
-                # So we can pass raw data and it will normalize it.
-                # However, if we pass uint8/uint16, __init__ will normalize it to [0, 1].
-                # But we should probably convert to float32 first to avoid integer division issues in __init__?
-                # __init__: data = (data - min_val) / (max_val - min_val)
-                # If data is uint, this might produce float64.
-                # Let's just pass the data and let __init__ handle it.
                 
                 return cls(data, bit_depth)
             
