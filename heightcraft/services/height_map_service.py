@@ -167,6 +167,86 @@ class HeightMapService:
         except Exception as e:
             raise HeightMapServiceError(f"Failed to normalize height map: {str(e)}")
 
+    def create_height_map_buffer(self, width: int, height: int) -> np.ndarray:
+        """
+        Create a buffer for height map generation.
+        
+        Args:
+            width: Width of the height map
+            height: Height of the height map
+            
+        Returns:
+            Initialized height map buffer (filled with zeros)
+        """
+        return np.zeros((height, width), dtype=np.float32)
+
+    def update_height_map_buffer(
+        self, 
+        buffer: np.ndarray, 
+        points: np.ndarray, 
+        bounds: Dict[str, float],
+        width: int,
+        height: int,
+        num_threads: int = 1
+    ) -> None:
+        """
+        Update a height map buffer with new points.
+        
+        Args:
+            buffer: The height map buffer to update (modified in-place)
+            points: The points to add
+            bounds: Global bounds for normalization
+            width: Width of the height map
+            height: Height of the height map
+            num_threads: Number of threads to use
+        """
+        if len(points) == 0:
+            return
+            
+        # Extract 2D points and Z values
+        points_2d = points[:, :2]
+        z_values = points[:, 2]
+        
+        # Pre-calculate ranges
+        x_range = bounds["max_x"] - bounds["min_x"]
+        y_range = bounds["max_y"] - bounds["min_y"]
+        z_range = bounds["max_z"] - bounds["min_z"]
+        
+        # Handle zero ranges
+        if x_range == 0: x_range = 1.0
+        if y_range == 0: y_range = 1.0
+        if z_range == 0: z_range = 1.0
+        
+        ranges = (x_range, y_range, z_range)
+        
+        # Process in chunks
+        chunk_size = max(1, len(points_2d) // max(1, num_threads))
+        futures = []
+        
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            for i in range(0, len(points_2d), chunk_size):
+                chunk = slice(i, min(i + chunk_size, len(points_2d)))
+                futures.append(
+                    executor.submit(
+                        self._process_chunk,
+                        points_2d[chunk],
+                        z_values[chunk],
+                        width,
+                        height,
+                        bounds,
+                        ranges
+                    )
+                )
+            
+            # Combine results
+            for future in futures:
+                chunk_coords, chunk_values = future.result()
+                if len(chunk_coords) > 0:
+                    # Use maximum projection (highest point wins)
+                    np.maximum.at(
+                        buffer, (chunk_coords[:, 1], chunk_coords[:, 0]), chunk_values
+                    )
+
     def generate_from_point_cloud(
         self, 
         point_cloud: PointCloud, 
@@ -196,57 +276,20 @@ class HeightMapService:
             if len(points) == 0:
                 raise HeightMapServiceError("Cannot generate height map from empty point cloud")
                 
-            # Extract 2D points and Z values
-            points_2d = points[:, :2]
-            z_values = points[:, 2]
-            bounds = point_cloud.bounds
+            # Create buffer
+            buffer = self.create_height_map_buffer(width, height)
             
-            # Initialize height map
-            height_map_data = np.zeros((height, width), dtype=np.float32)
+            # Update buffer
+            self.update_height_map_buffer(
+                buffer, 
+                points, 
+                point_cloud.bounds, 
+                width, 
+                height, 
+                num_threads
+            )
             
-            # Calculate coordinates in parallel
-            futures = []
-            chunk_size = max(1, len(points_2d) // num_threads)
-            
-            # Pre-calculate ranges to avoid redundant computation in chunks
-            x_range = bounds["max_x"] - bounds["min_x"]
-            y_range = bounds["max_y"] - bounds["min_y"]
-            z_range = bounds["max_z"] - bounds["min_z"]
-            
-            # Handle zero ranges
-            if x_range == 0: x_range = 1.0  # Avoid division by zero
-            if y_range == 0: y_range = 1.0
-            if z_range == 0: z_range = 1.0
-            
-            with ThreadPoolExecutor(max_workers=num_threads) as executor:
-                for i in range(0, len(points_2d), chunk_size):
-                    chunk = slice(i, min(i + chunk_size, len(points_2d)))
-                    futures.append(
-                        executor.submit(
-                            self._process_chunk,
-                            points_2d[chunk],
-                            z_values[chunk],
-                            width,
-                            height,
-                            bounds,
-                            (x_range, y_range, z_range)
-                        )
-                    )
-                
-                # Combine results
-                for future in futures:
-                    chunk_coords, chunk_values = future.result()
-                    if len(chunk_coords) > 0:
-                        # Use maximum projection (highest point wins)
-                        np.maximum.at(
-                            height_map_data, (chunk_coords[:, 1], chunk_coords[:, 0]), chunk_values
-                        )
-            
-            # Create height map object (data is already normalized Z values from _process_chunk)
-            # But we might want to ensure it's in [0, 1] range if _process_chunk does that
-            # _process_chunk normalizes Z to [0, 1] based on bounds
-            
-            return HeightMap(height_map_data, bit_depth)
+            return HeightMap(buffer, bit_depth)
             
         except Exception as e:
             raise HeightMapServiceError(f"Failed to generate height map from point cloud: {str(e)}")

@@ -14,6 +14,7 @@ from heightcraft.core.config import ApplicationConfig, ModelConfig, SamplingConf
 from heightcraft.domain.mesh import Mesh
 from heightcraft.domain.point_cloud import PointCloud
 from heightcraft.processors.large_model_processor import LargeModelProcessor
+from multiprocessing.pool import ThreadPool
 from heightcraft.services.mesh_service import MeshService
 from heightcraft.services.model_service import ModelService
 from heightcraft.services.height_map_service import HeightMapService
@@ -124,7 +125,8 @@ class TestLargeModelProcessor(unittest.TestCase):
         self.sampling_service.sample_points.return_value = mock_point_cloud
         
         # Run sampling
-        points = self.processor.sample_points()
+        points_generator = self.processor.sample_points()
+        points = list(points_generator)
         
         # Verify
         self.assertTrue(len(points) > 0)
@@ -145,7 +147,12 @@ class TestLargeModelProcessor(unittest.TestCase):
         
         # Verify
         self.assertIsNotNone(height_map)
-        self.height_map_service.generate_from_point_cloud.assert_called()
+        # Verify
+        self.assertIsNotNone(height_map)
+        # generate_from_point_cloud is no longer called in LargeModelProcessor
+        # Instead it calls create_height_map_buffer and update_height_map_buffer
+        self.height_map_service.create_height_map_buffer.assert_called()
+        self.height_map_service.update_height_map_buffer.assert_called()
 
     def test_save_height_map(self):
         """Test saving height map."""
@@ -161,6 +168,111 @@ class TestLargeModelProcessor(unittest.TestCase):
         # Verify
         self.assertEqual(path, "output.png")
         self.height_map_service.save_height_map.assert_called()
+
+    @patch('heightcraft.processors.large_model_processor.as_completed')
+    @patch('heightcraft.processors.large_model_processor.ThreadPoolExecutor')
+    @patch('heightcraft.processors.large_model_processor.trimesh.load')
+    def test_large_model_processor_threading_gpu(self, mock_load, MockThreadPool, mock_as_completed):
+        """Test that LargeModelProcessor uses max_workers=1 when use_gpu is True."""
+        # Setup config with GPU enabled
+        model_config = ModelConfig(file_path="dummy.obj", mode=ProcessingMode.LARGE, chunk_size=100)
+        sampling_config = SamplingConfig(num_samples=100, use_gpu=True, num_threads=4) # Request 4 threads
+        height_map_config = HeightMapConfig(max_resolution=128)
+        output_config = OutputConfig(output_path="out.png")
+        
+        config = ApplicationConfig(
+            model_config=model_config,
+            sampling_config=sampling_config,
+            height_map_config=height_map_config,
+            output_config=output_config
+        )
+        
+        processor = LargeModelProcessor(config)
+        
+        # Mock internal state to simulate having chunks
+        processor.chunks = [{'vertices': 0, 'vertex_count': 1, 'faces': np.array([[0, 1, 2]]), 'vertex_offset': 0}]
+        processor.vertex_buffer = [np.array([[0,0,0], [1,0,0], [0,1,0]])] # Valid vertices for faces [0, 1, 2]
+        
+        # Mock sampling service to avoid actual work
+        processor.sampling_service = MagicMock()
+        mock_points = MagicMock()
+        mock_points.points = np.array([[0.1, 0.1, 0.1]])
+        mock_points.size = 1
+        processor.sampling_service.sample_points.return_value = mock_points
+
+        # Configure as_completed to yield the mock future
+        mock_future = MagicMock()
+        mock_future.result.return_value = MagicMock(points=np.array([[0.1, 0.1, 0.1]]), size=1)
+        MockThreadPool.return_value.submit.return_value = mock_future
+        mock_as_completed.return_value = [mock_future]
+
+        # Call the method that uses ThreadPool
+        # We need to mock _sample_points_from_chunks or _sample_points_from_scene
+        # Let's test _sample_points_from_chunks
+        # Consume the generator to trigger execution
+        list(processor._sample_points_from_chunks(100, True))
+        
+        # Verify ThreadPool was initialized with max_workers=1
+        # The method creates a ThreadPool instance. We check the call args.
+        # Note: ThreadPool might be called multiple times (e.g. in load_model), 
+        # but we are interested in the call inside _sample_points_from_chunks.
+        
+        # Filter calls to find the one with max_workers=1
+        found_sequential_call = False
+        for call in MockThreadPool.call_args_list:
+            if call.kwargs.get('max_workers') == 1:
+                found_sequential_call = True
+                break
+        
+        self.assertTrue(found_sequential_call, "ThreadPool should be initialized with max_workers=1 when use_gpu is True")
+
+    @patch('heightcraft.processors.large_model_processor.as_completed')
+    @patch('heightcraft.processors.large_model_processor.ThreadPoolExecutor')
+    @patch('heightcraft.processors.large_model_processor.trimesh.load')
+    def test_large_model_processor_threading_cpu(self, mock_load, MockThreadPool, mock_as_completed):
+        """Test that LargeModelProcessor uses configured threads when use_gpu is False."""
+        # Setup config with GPU disabled
+        model_config = ModelConfig(file_path="dummy.obj", mode=ProcessingMode.LARGE, chunk_size=100)
+        sampling_config = SamplingConfig(num_samples=100, use_gpu=False, num_threads=4) # Request 4 threads
+        height_map_config = HeightMapConfig(max_resolution=128)
+        output_config = OutputConfig(output_path="out.png")
+        
+        config = ApplicationConfig(
+            model_config=model_config,
+            sampling_config=sampling_config,
+            height_map_config=height_map_config,
+            output_config=output_config
+        )
+        
+        processor = LargeModelProcessor(config)
+        
+        # Mock internal state
+        processor.chunks = [{'vertices': 0, 'vertex_count': 1, 'faces': np.array([[0, 1, 2]]), 'vertex_offset': 0}]
+        processor.vertex_buffer = [np.array([[0,0,0], [1,0,0], [0,1,0]])]
+        processor.sampling_service = MagicMock()
+        mock_points = MagicMock()
+        mock_points.points = np.array([[0.1, 0.1, 0.1]])
+        mock_points.size = 1
+        processor.sampling_service.sample_points.return_value = mock_points
+
+        # Configure as_completed to yield the mock future
+        mock_future = MagicMock()
+        mock_future.result.return_value = MagicMock(points=np.array([[0.1, 0.1, 0.1]]), size=1)
+        MockThreadPool.return_value.submit.return_value = mock_future
+        mock_as_completed.return_value = [mock_future]
+
+        # Call the method
+        # Consume the generator to trigger execution
+        list(processor._sample_points_from_chunks(100, False))
+        
+        # Verify ThreadPool was initialized with max_workers=4
+        found_parallel_call = False
+        for call in MockThreadPool.call_args_list:
+            if call.kwargs.get('max_workers') == 4:
+                found_parallel_call = True
+                break
+        
+        self.assertTrue(found_parallel_call, "ThreadPool should be initialized with max_workers=4 when use_gpu is False")
 
 if __name__ == '__main__':
     unittest.main()

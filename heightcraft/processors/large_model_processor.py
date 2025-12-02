@@ -9,7 +9,7 @@ import gc
 import logging
 import os
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -270,14 +270,44 @@ class LargeModelProcessor(BaseProcessor):
             rotation = trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0])
             for i in range(len(self.vertex_buffer)):
                 self.vertex_buffer[i] = trimesh.transform_points(self.vertex_buffer[i], rotation)
+                
+            # Calculate global bounds after transformation
+            self._calculate_global_bounds()
+            
+    def _calculate_global_bounds(self) -> None:
+        """Calculate global bounds from all vertex chunks."""
+        min_x, min_y, min_z = float('inf'), float('inf'), float('inf')
+        max_x, max_y, max_z = float('-inf'), float('-inf'), float('-inf')
+        
+        for chunk in self.vertex_buffer:
+            if len(chunk) == 0:
+                continue
+                
+            c_min = np.min(chunk, axis=0)
+            c_max = np.max(chunk, axis=0)
+            
+            min_x = min(min_x, c_min[0])
+            min_y = min(min_y, c_min[1])
+            min_z = min(min_z, c_min[2])
+            
+            max_x = max(max_x, c_max[0])
+            max_y = max(max_y, c_max[1])
+            max_z = max(max_z, c_max[2])
+            
+        self.bounds = {
+            "min_x": min_x, "max_x": max_x,
+            "min_y": min_y, "max_y": max_y,
+            "min_z": min_z, "max_z": max_z
+        }
+        self.logger.info(f"Calculated global bounds: {self.bounds}")
     
     @profiler.profile()
-    def sample_points(self) -> np.ndarray:
+    def sample_points(self) -> Union[np.ndarray, object]:
         """
         Sample points from the model with memory-efficient techniques.
         
         Returns:
-            Sampled points
+            Generator yielding chunks of sampled points
             
         Raises:
             SamplingError: If point sampling fails
@@ -298,7 +328,7 @@ class LargeModelProcessor(BaseProcessor):
             raise SamplingError(f"Failed to sample points: {e}")
     
     @profiler.profile()
-    def _sample_points_from_scene(self, num_samples: int, use_gpu: bool) -> np.ndarray:
+    def _sample_points_from_scene(self, num_samples: int, use_gpu: bool):
         """
         Sample points from a scene.
         
@@ -306,15 +336,15 @@ class LargeModelProcessor(BaseProcessor):
             num_samples: Number of points to sample
             use_gpu: Whether to use GPU for sampling
             
-        Returns:
-            Sampled points
-            
-        Raises:
-            SamplingError: If point sampling fails
+        Yields:
+            Chunks of sampled points
         """
         # Calculate area for each geometry to distribute samples proportionally
         total_faces = sum(len(chunk["faces"]) for chunk in self.chunks)
         
+        if total_faces == 0:
+            return
+            
         # Distribute samples proportionally to face count
         samples_per_chunk = []
         for chunk in self.chunks:
@@ -334,36 +364,54 @@ class LargeModelProcessor(BaseProcessor):
             samples_per_chunk[largest_idx] -= total_assigned - num_samples
         
         # Sample points from each chunk
-        point_clouds = []
-        
         # If using GPU, process chunks sequentially to avoid OOM
         max_workers = 1 if use_gpu else self.sampling_config.num_threads
         
-        with ThreadPool(max_workers=max_workers) as pool:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+            
             for i, (chunk, chunk_samples) in enumerate(zip(self.chunks, samples_per_chunk)):
                 if chunk_samples <= 0:
                     continue
                 
                 self.logger.debug(f"Sampling {chunk_samples} points from chunk {i+1}/{len(self.chunks)}")
                 
-                # Create a mesh for this chunk
-                vertices = np.vstack(self.vertex_buffer[chunk["vertices"]:chunk["vertices"] + chunk["vertex_count"]])
-                faces = chunk["faces"] - chunk["vertex_offset"]
-                chunk_mesh = Mesh(trimesh.Trimesh(vertices=vertices, faces=faces))
-                
-                # Sample points
-                chunk_points = self.sampling_service.sample_points(
-                    chunk_mesh, chunk_samples, use_gpu, 
-                    self.sampling_config.num_threads
-                )
-                
-                point_clouds.append(chunk_points)
+                # Submit task
+                futures.append(executor.submit(
+                    self._process_chunk_sampling,
+                    chunk,
+                    chunk_samples,
+                    use_gpu
+                ))
+            
+            # Yield results as they complete
+            for future in as_completed(futures):
+                try:
+                    chunk_points = future.result()
+                    if chunk_points.size > 0:
+                        yield chunk_points.points
+                    
+                    # Explicit cleanup
+                    del chunk_points
+                    gc.collect()
+                except Exception as e:
+                    self.logger.error(f"Error sampling chunk: {e}")
+    
+    def _process_chunk_sampling(self, chunk, chunk_samples, use_gpu):
+        """Helper method for parallel chunk sampling."""
+        # Create a mesh for this chunk
+        vertices = np.vstack(self.vertex_buffer[chunk["vertices"]:chunk["vertices"] + chunk["vertex_count"]])
+        faces = chunk["faces"] - chunk["vertex_offset"]
+        chunk_mesh = Mesh(trimesh.Trimesh(vertices=vertices, faces=faces))
         
-        # Merge results
-        return PointCloud.merge(point_clouds).points
+        # Sample points
+        return self.sampling_service.sample_points(
+            chunk_mesh, chunk_samples, use_gpu, 
+            1 # Use 1 thread per chunk since we parallelize chunks
+        )
     
     @profiler.profile()
-    def _sample_points_from_chunks(self, num_samples: int, use_gpu: bool) -> np.ndarray:
+    def _sample_points_from_chunks(self, num_samples: int, use_gpu: bool):
         """
         Sample points from mesh chunks.
         
@@ -371,11 +419,8 @@ class LargeModelProcessor(BaseProcessor):
             num_samples: Number of points to sample
             use_gpu: Whether to use GPU for sampling
             
-        Returns:
-            Sampled points
-            
-        Raises:
-            SamplingError: If point sampling fails
+        Yields:
+            Chunks of sampled points
         """
         # Calculate total area to distribute samples proportionally
         total_area = 0.0
@@ -427,43 +472,36 @@ class LargeModelProcessor(BaseProcessor):
                 samples_per_chunk[max_idx] -= current_total - num_samples
         
         # Sample points from each chunk
-        point_clouds = []
-        
         # If using GPU, process chunks sequentially to avoid OOM
         max_workers = 1 if use_gpu else self.sampling_config.num_threads
         
-        with ThreadPool(max_workers=max_workers) as pool:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+            
             for i, (chunk, chunk_samples) in enumerate(zip(self.chunks, samples_per_chunk)):
                 if chunk_samples <= 0:
                     continue
                 
-                # Get vertices for this chunk
-                chunk_vertices_arrays = self.vertex_buffer[chunk["vertices"]:chunk["vertices"] + chunk["vertex_count"]]
-                if not chunk_vertices_arrays:
-                    continue
+                # Submit task
+                futures.append(executor.submit(
+                    self._process_chunk_sampling,
+                    chunk,
+                    chunk_samples,
+                    use_gpu
+                ))
+                
+            # Yield results as they complete
+            for future in as_completed(futures):
+                try:
+                    chunk_points = future.result()
+                    if chunk_points.size > 0:
+                        yield chunk_points.points
                     
-                vertices = np.vstack(chunk_vertices_arrays)
-                faces = chunk["faces"] - chunk["vertex_offset"]
-                
-                # Create temporary mesh
-                chunk_mesh = Mesh(trimesh.Trimesh(vertices=vertices, faces=faces))
-                
-                # Sample points
-                chunk_points = self.sampling_service.sample_points(
-                    chunk_mesh, chunk_samples, use_gpu, 
-                    self.sampling_config.num_threads
-                )
-                
-                point_clouds.append(chunk_points)
-                
-                # Explicit cleanup
-                del vertices, faces, chunk_mesh
-        
-        if not point_clouds:
-            return np.array([])
-            
-        # Merge results
-        return PointCloud.merge(point_clouds).points
+                    # Explicit cleanup
+                    del chunk_points
+                    gc.collect()
+                except Exception as e:
+                    self.logger.error(f"Error sampling chunk: {e}")
     
     @profiler.profile()
     def generate_height_map(self) -> np.ndarray:
@@ -480,23 +518,46 @@ class LargeModelProcessor(BaseProcessor):
             if self.points is None:
                 raise HeightMapGenerationError("No points available. Call sample_points() first.")
             
-            # Create point cloud
-            point_cloud = PointCloud(self.points)
-            
             # Calculate target resolution
-            width, height = self._calculate_target_resolution(point_cloud)
-            resolution = (width, height)
+            width, height = self._calculate_target_resolution()
+            self.logger.info(f"Generating height map with resolution {width}x{height}")
             
-            # Generate height map using the correct method
-            height_map_obj = self.height_map_service.generate_from_point_cloud(
-                point_cloud, 
-                resolution, 
-                bit_depth=self.height_map_config.bit_depth,
-                num_threads=self.sampling_config.num_threads
-            )
+            # Create buffer
+            buffer = self.height_map_service.create_height_map_buffer(width, height)
+            
+            # Process points incrementally
+            total_points = 0
+            
+            # Check if self.points is a generator or array
+            if hasattr(self.points, '__iter__') and not isinstance(self.points, (np.ndarray, list)):
+                # Generator
+                for chunk_points in self.points:
+                    self.height_map_service.update_height_map_buffer(
+                        buffer,
+                        chunk_points,
+                        self.bounds,
+                        width,
+                        height,
+                        self.sampling_config.num_threads
+                    )
+                    total_points += len(chunk_points)
+                    self.logger.debug(f"Processed chunk with {len(chunk_points)} points")
+            else:
+                # Array or list
+                self.height_map_service.update_height_map_buffer(
+                    buffer,
+                    self.points,
+                    self.bounds,
+                    width,
+                    height,
+                    self.sampling_config.num_threads
+                )
+                total_points = len(self.points)
+            
+            self.logger.info(f"Generated height map from {total_points} points")
             
             # Store the height map object for saving
-            self.height_map = height_map_obj.data
+            self.height_map = buffer
             
             return self.height_map
             
@@ -514,13 +575,10 @@ class LargeModelProcessor(BaseProcessor):
         self.logger.warning("Upscaling is not currently supported for large models. Skipping upscaling step.")
     
     @profiler.profile()
-    def _calculate_target_resolution(self, point_cloud: PointCloud) -> Tuple[int, int]:
+    def _calculate_target_resolution(self) -> Tuple[int, int]:
         """
-        Calculate target resolution based on point cloud proportions.
+        Calculate target resolution based on model bounds.
         
-        Args:
-            point_cloud: The point cloud
-            
         Returns:
             Tuple of (width, height)
         """
@@ -529,7 +587,7 @@ class LargeModelProcessor(BaseProcessor):
         calculator = ResolutionCalculator()
         
         width, height = calculator.calculate_resolution_from_bounds(
-            point_cloud.bounds,
+            self.bounds,
             max_resolution=self.height_map_config.max_resolution
         )
         

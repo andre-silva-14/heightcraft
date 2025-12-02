@@ -120,7 +120,8 @@ class TestIntegrationLargeModel(unittest.TestCase):
             original_mesh_init(self, trimesh_obj)
             
         with patch.object(Mesh, '__init__', side_effect=side_effect_mesh_init, autospec=True):
-            points = self.processor.sample_points()
+            points_generator = self.processor.sample_points()
+            points = np.vstack(list(points_generator))
             
         # Verify points
         self.assertEqual(len(points), 1000)
@@ -191,7 +192,9 @@ class TestIntegrationLargeModel(unittest.TestCase):
         self.assertTrue(len(self.processor.chunks) > 1, "Should be chunked")
         
         # Sample points
-        points = self.processor.sample_points()
+        # Sample points
+        points_generator = self.processor.sample_points()
+        points = np.vstack(list(points_generator))
         
         # Check bounds of sampled points
         # The model is centered and aligned.

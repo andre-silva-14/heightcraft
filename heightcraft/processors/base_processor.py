@@ -7,7 +7,7 @@ It follows the Strategy pattern to allow for different processing approaches.
 
 import abc
 import logging
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union, Generator, Any
 
 import numpy as np
 import trimesh
@@ -60,14 +60,14 @@ class BaseProcessor(abc.ABC):
         pass
     
     @abc.abstractmethod
-    def sample_points(self) -> np.ndarray:
+    def sample_points(self) -> Union[np.ndarray, Generator[np.ndarray, None, None]]:
         """
         Sample points from the 3D model.
         
         This method must be implemented by all subclasses.
         
         Returns:
-            Sampled points
+            Sampled points (array or generator yielding arrays)
             
         Raises:
             ProcessingError: If point sampling fails
