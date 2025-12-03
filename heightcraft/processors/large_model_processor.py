@@ -17,7 +17,7 @@ import trimesh
 
 from heightcraft.core.config import ApplicationConfig, ModelConfig, SamplingConfig
 from heightcraft.core.config import ApplicationConfig
-from heightcraft.core.exceptions import ProcessingError, SamplingError
+from heightcraft.core.exceptions import ProcessingError, SamplingError, ModelLoadError, HeightMapGenerationError
 from heightcraft.domain.height_map import HeightMap
 from heightcraft.domain.mesh import Mesh
 from heightcraft.domain.point_cloud import PointCloud
@@ -56,10 +56,20 @@ class LargeModelProcessor(BaseProcessor):
         self.height_map_service = HeightMapService()
         self.sampling_service = SamplingService(self.sampling_config)
         
+        # Lazy import to avoid TensorFlow overhead/crashes
+        from heightcraft.services.upscaling_service import UpscalingService
+        self.upscaling_service = UpscalingService(
+            config=config.upscale_config,
+            cache_manager=None,  # We'll set this later if cache is enabled
+            height_map_service=self.height_map_service
+        )
+        
         # Initialize cache manager
         self.cache_manager = None
         if self.model_config.cache_dir:
             self.cache_manager = CacheManager(self.model_config.cache_dir)
+            # Update upscaling service with cache manager
+            self.upscaling_service.cache_manager = self.cache_manager
         
         # Initialize other required attributes
         self.mesh = None
@@ -176,10 +186,10 @@ class LargeModelProcessor(BaseProcessor):
                     # Update vertex offset
                     vertex_offset += len(mesh.vertices)
             
-            # Create a mesh from the first chunks for validation and bounds
-            sample_data = {"vertices": np.vstack(self.vertex_buffer[:min(10, len(self.vertex_buffer))]), 
-                           "faces": np.vstack([chunk["faces"] for chunk in self.chunks[:min(10, len(self.chunks))]])}
-            self.mesh = Mesh(trimesh.Trimesh(**sample_data))
+            # Skip creating a sample mesh as it can cause index out of bounds errors
+            # if vertex and face chunks are not aligned.
+            # self.mesh is not used for large model processing logic.
+            self.mesh = None
             
             # Center and align
             self._center_and_align()
@@ -229,10 +239,10 @@ class LargeModelProcessor(BaseProcessor):
                     "vertex_offset": 0
                 })
             
-            # Create a mesh from the first chunks for validation and bounds
-            sample_data = {"vertices": np.vstack(self.vertex_buffer[:min(10, len(self.vertex_buffer))]), 
-                           "faces": np.vstack([chunk["faces"] for chunk in self.chunks[:min(10, len(self.chunks))]])}
-            self.mesh = Mesh(trimesh.Trimesh(**sample_data))
+            # Skip creating a sample mesh as it can cause index out of bounds errors
+            # if vertex and face chunks are not aligned.
+            # self.mesh is not used for large model processing logic.
+            self.mesh = None
             
             # Center and align
             self._center_and_align()
@@ -568,11 +578,32 @@ class LargeModelProcessor(BaseProcessor):
         """
         Upscale the generated height map.
         
-        Note:
-            Upscaling is currently not supported for large models due to memory constraints.
-            This method logs a warning and does nothing.
+        Raises:
+            ProcessingError: If upscaling fails
         """
-        self.logger.warning("Upscaling is not currently supported for large models. Skipping upscaling step.")
+        try:
+            if self.height_map is None:
+                raise ProcessingError("No height map available. Call generate_height_map() first.")
+            
+            self.logger.info("Upscaling height map using UpscalingService")
+            
+            # Create HeightMap domain object
+            height_map_obj = HeightMap(self.height_map, self.height_map_config.bit_depth)
+            
+            # Upscale using service
+            upscaled_map = self.upscaling_service.upscale(
+                height_map_obj,
+                scale_factor=self.config.upscale_config.upscale_factor,
+                use_gpu=self.config.sampling_config.use_gpu
+            )
+            
+            # Update internal state
+            self.height_map = upscaled_map.data
+            
+            self.logger.info(f"Height map upscaled to {self.height_map.shape}")
+            
+        except Exception as e:
+            raise ProcessingError(f"Failed to upscale height map: {e}")
     
     @profiler.profile()
     def _calculate_target_resolution(self) -> Tuple[int, int]:

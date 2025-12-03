@@ -169,6 +169,7 @@ class GPUManager:
             # Force garbage collection to get accurate memory stats
             self._collect_garbage()
             
+            import torch
             # Get memory statistics
             device = torch.cuda.current_device()
             return torch.cuda.memory_reserved(device) - torch.cuda.memory_allocated(device)
@@ -182,6 +183,7 @@ class GPUManager:
         try:
             # PyTorch-specific garbage collection
             if self.has_gpu:
+                import torch
                 torch.cuda.empty_cache()
             
             # Python garbage collection
@@ -223,7 +225,7 @@ class GPUManager:
         """
         if self.has_gpu and tensor is not None and hasattr(tensor, 'device'):
             if tensor.device.type == 'cuda':
-                self.gpu_tensors.append(tensor)
+                self.gpu_tensors.add(tensor)
     
     def unregister_tensor(self, tensor) -> None:
         """

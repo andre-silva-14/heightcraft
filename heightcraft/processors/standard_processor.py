@@ -170,14 +170,15 @@ class StandardProcessor(BaseProcessor):
             
             self.logger.info("Generating height map using HeightMapService")
             
-            # Calculate target resolution using ResolutionCalculator
-            width, height = self._calculate_target_resolution()
-            
             # Create PointCloud domain object
             point_cloud = PointCloud(self.points)
             
             # Update bounds from point cloud
             self.bounds = point_cloud.bounds
+            
+            # Calculate target resolution using ResolutionCalculator
+            # We must do this AFTER updating bounds to get correct aspect ratio
+            width, height = self._calculate_target_resolution()
             
             # Generate height map using HeightMapService
             height_map_obj = self.height_map_service.generate_from_point_cloud(

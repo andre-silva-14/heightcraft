@@ -64,17 +64,21 @@ class TestLargeModelProcessor(unittest.TestCase):
         self.model_service_patcher = patch('heightcraft.processors.large_model_processor.ModelService')
         self.height_map_service_patcher = patch('heightcraft.processors.large_model_processor.HeightMapService')
         self.sampling_service_patcher = patch('heightcraft.processors.large_model_processor.SamplingService')
+        # Patch UpscalingService where it is defined since it is imported locally
+        self.upscaling_service_patcher = patch('heightcraft.services.upscaling_service.UpscalingService')
         
         self.MockMeshService = self.mesh_service_patcher.start()
         self.MockModelService = self.model_service_patcher.start()
         self.MockHeightMapService = self.height_map_service_patcher.start()
         self.MockSamplingService = self.sampling_service_patcher.start()
+        self.MockUpscalingService = self.upscaling_service_patcher.start()
         
         # Setup mock instances
         self.mesh_service = self.MockMeshService.return_value
         self.model_service = self.MockModelService.return_value
         self.height_map_service = self.MockHeightMapService.return_value
         self.sampling_service = self.MockSamplingService.return_value
+        self.upscaling_service = self.MockUpscalingService.return_value
         
         # Initialize processor
         self.processor = LargeModelProcessor(self.config)
@@ -89,6 +93,7 @@ class TestLargeModelProcessor(unittest.TestCase):
         self.model_service_patcher.stop()
         self.height_map_service_patcher.stop()
         self.sampling_service_patcher.stop()
+        self.upscaling_service_patcher.stop()
         
         import shutil
         if os.path.exists(self.test_dir):
@@ -273,6 +278,23 @@ class TestLargeModelProcessor(unittest.TestCase):
                 break
         
         self.assertTrue(found_parallel_call, "ThreadPool should be initialized with max_workers=4 when use_gpu is False")
+
+    def test_upscale_height_map(self):
+        """Test upscaling height map."""
+        # Setup processor state
+        self.processor.height_map = np.zeros((128, 128))
+        
+        # Mock upscaling service response
+        mock_upscaled_map = MagicMock()
+        mock_upscaled_map.data = np.zeros((256, 256))
+        self.processor.upscaling_service.upscale.return_value = mock_upscaled_map
+        
+        # Run upscaling
+        self.processor.upscale_height_map()
+        
+        # Verify
+        self.processor.upscaling_service.upscale.assert_called()
+        self.assertEqual(self.processor.height_map.shape, (256, 256))
 
 if __name__ == '__main__':
     unittest.main()
