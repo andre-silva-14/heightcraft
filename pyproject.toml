@@ -38,6 +38,7 @@ dependencies = [
     "Pillow>=9.0.0",
     "laspy[lazrs]>=2.0.0",
     "tifffile>=2023.0.0",
+    "xxhash>=3.0.0",
 ]
 
 [project.urls]
