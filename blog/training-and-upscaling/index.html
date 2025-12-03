@@ -9,9 +9,9 @@
 
 
 
-<link rel="search" type="application/opensearchdescription+xml" title="Heightcraft" href="/heightcraft/opensearch.xml"><link rel="stylesheet" href="/heightcraft/assets/css/styles.96bdc003.css">
-<script src="/heightcraft/assets/js/runtime~main.6ecc3053.js" defer="defer"></script>
-<script src="/heightcraft/assets/js/main.59b57967.js" defer="defer"></script>
+<link rel="search" type="application/opensearchdescription+xml" title="Heightcraft" href="/heightcraft/opensearch.xml"><link rel="stylesheet" href="/heightcraft/assets/css/styles.ab2d1275.css">
+<script src="/heightcraft/assets/js/runtime~main.34ae5a53.js" defer="defer"></script>
+<script src="/heightcraft/assets/js/main.d29195cc.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
 <svg style="display: none;"><defs>
@@ -32,9 +32,28 @@
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="step-2-run-training">Step 2: Run Training<a href="#step-2-run-training" class="hash-link" aria-label="Direct link to Step 2: Run Training" title="Direct link to Step 2: Run Training" translate="no">​</a></h2>
 <p>Use the <code>--train</code> flag to start the training process. Heightcraft handles data augmentation and splitting automatically.</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#F8F8F2;--prism-background-color:#282A36"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#F8F8F2;background-color:#282A36"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#F8F8F2"><span class="token plain">heightcraft --train \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --dataset_path ./my_dataset \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --epochs 50 \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --batch_size 16 \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --learning_rate 0.0001 \</span><br></span><span class="token-line" style="color:#F8F8F2"><span class="token plain">  --pretrained_model my_custom_model.h5</span><br></span></code></pre></div></div>
+<p>Arguments:</p>
 <ul>
-<li class=""><code>--epochs</code>: How many times to iterate over the dataset. 50-100 is usually good.</li>
-<li class=""><code>--pretrained_model</code>: The output path for your new model.</li>
+<li class=""><code>--dataset_path</code>: Path to a folder containing high-res images (PNG, JPG, TIF).</li>
+<li class=""><code>--pretrained_model</code>: Path to save the trained model (default: trained_model.h5).</li>
+</ul>
+<p><strong>Hyperparameters:</strong></p>
+<ul>
+<li class=""><code>--epochs</code> (Default: 10): How many times the AI sees the entire dataset.<!-- -->
+<ul>
+<li class=""><em>Effect:</em> Higher values (e.g., 50-100) generally lead to better quality but take longer. If set too high, the model might &quot;memorize&quot; the training data (overfitting) and perform poorly on new maps.</li>
+</ul>
+</li>
+<li class=""><code>--batch_size</code> (Default: 16): How many images are processed at once.<!-- -->
+<ul>
+<li class=""><em>Effect:</em> Larger batches (32, 64) speed up training but require more GPU memory. Smaller batches (4, 8) are slower but offer more stable updates.</li>
+</ul>
+</li>
+<li class=""><code>--learning_rate</code> (Default: 0.0001): How fast the AI adapts its internal weights.<!-- -->
+<ul>
+<li class=""><em>Effect:</em> A higher rate (e.g., 0.001) learns faster but might miss the optimal solution (unstable). A lower rate (e.g., 0.00001) is more precise but takes much longer to converge.</li>
+</ul>
+</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="step-3-upscale-with-your-model">Step 3: Upscale with Your Model<a href="#step-3-upscale-with-your-model" class="hash-link" aria-label="Direct link to Step 3: Upscale with Your Model" title="Direct link to Step 3: Upscale with Your Model" translate="no">​</a></h2>
 <p>Once training is complete, you can use your new model to upscale low-resolution inputs.</p>
