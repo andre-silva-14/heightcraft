@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Heightcraft',
-  tagline: 'AI-Powered Heightmap Generation & Upscaling',
+  tagline: 'Heightmap Generation & AI Upscaling',
   favicon: 'img/logo-neon.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -68,12 +68,17 @@ const config: Config = {
     ],
   ],
 
+  themes: ['@docusaurus/theme-mermaid'],
+  markdown: {
+    mermaid: true,
+  },
+
   themeConfig: {
     // Replace with your project's social card
     image: 'img/heightcraft-social-card.png',
     metadata: [
       { name: 'keywords', content: 'ai-upscaling, heightmap, lidar, gis, game-dev, automation, pipeline, dem, point-cloud' },
-      { name: 'description', content: 'Heightcraft: AI-Powered Heightmap Generation & Upscaling Tool for GIS and Game Development.' }
+      { name: 'description', content: 'Heightcraft: Heightmap Generation & AI Upscaling Tool for GIS and Game Development.' }
     ],
     colorMode: {
       defaultMode: 'dark',
@@ -186,6 +191,7 @@ const config: Config = {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
     },
+
   } satisfies Preset.ThemeConfig,
 };
 

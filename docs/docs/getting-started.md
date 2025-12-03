@@ -20,18 +20,34 @@ heightcraft [INPUT_FILE] [OPTIONS]
 heightcraft terrain.obj
 ```
 
+:::tip Monitoring Tip
+
+Heightcraft will by default not output INFO/DEBUG messages. You can control the vervosity levels using the -v/-vv flag
+
+:::
+
 ### 2. Process LiDAR Data
+
+Heightcraft automatically detects the input format and processes it accordingly. In the example, we are also using two optional arguments to customize the output filename and output bit depth.
 
 ```bash
 heightcraft scan.laz --output_path dem.tiff --bit_depth 32
 ```
 
-### 3. AI Upscaling (Image-to-Image)
+### 3. AI Upscaling (Obj-to-Image)
 
-Upscale a low-res heightmap and increase bit depth:
+You can specify the upscale flag directly when processing a 3D Mesh/LiDAR data. This will first generate a heightmap and then upscale it. Useful for when the Mesh/LiDAR doesn't have a lot of detail.
 
 ```bash
-heightcraft low_res.png --upscale --upscale_factor 2 --bit_depth 16 --output_path high_res.png
+heightcraft terrain.obj --upscale --upscale_factor 4 --pretrained_model /path/to/upscaler.h5
+```
+
+### 4. AI Upscaling (Image-to-Image)
+
+Upscale a low-res heightmap (2x) and increase bit depth to 16-bit (assuming original was 8-bit):
+
+```bash
+heightcraft low_res.png --upscale --upscale_factor 2 --pretrained_model /path/to/upscaler.h5
 ```
 
 ## Options
@@ -44,7 +60,7 @@ heightcraft low_res.png --upscale --upscale_factor 2 --bit_depth 16 --output_pat
 | `--split` | Splits the output into equal sized files (i.e. 9 provides a 3x3 grid) | `1` |
 | `--num_threads` | Number of CPU threads to use (when in CPU mode) | `4` |
 | `--use_gpu` | Enable GPU acceleration. | `False` |
-| `--num_samples` | Number of samples to samples the object for heightmap generation. For higher resolutions, the number of samples needs to be exponentially higher to avoid gaps (Black Holes) | `100000` |
+| `--num_samples` | Number of samples to samples the object for heightmap generation. For higher resolutions, the number of samples needs to be exponentially higher to avoid gaps (Black Holes) | `500000` |
 | `--large_model` | Enables chunk processing to avoid OutOfMemory errors. | `False` for 3D meshes. LiDAR data always processes in chunks. |
 | `--chunk_size` | Defines the size of chunks | `1000000` |
 | `--upscale` | Enable AI upscaling. | `False` |

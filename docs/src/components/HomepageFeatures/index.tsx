@@ -15,7 +15,7 @@ const FeatureList: FeatureItem[] = [
     image: require('@site/static/img/feature-ai.png').default,
     description: (
       <>
-        Transform low-resolution inputs into crisp, high-detail heightmaps.
+        Transform low-resolution inputs into crisp, high-res/high-detail heightmaps.
         Increase bit depth (8-bit → 16/32-bit) with AI hallucination for
         game-ready terrains.
       </>
@@ -37,7 +37,7 @@ const FeatureList: FeatureItem[] = [
     image: require('@site/static/img/feature-mesh.png').default,
     description: (
       <>
-        Convert 3D meshes (<code>.obj</code>, <code>.stl</code>) into
+        Convert 3D meshes (<code>.obj</code>, <code>.stl</code>, <code>.ply</code>, <code>.glb</code>, <code>.gltf</code>) into
         heightmaps. Perfect for baking terrain geometry from modeling software
         like Blender or ZBrush.
       </>

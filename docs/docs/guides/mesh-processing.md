@@ -4,12 +4,12 @@ sidebar_position: 3
 
 # Mesh Processing
 
-Convert 3D meshes (`.obj`, `.stl`, `.ply`, `.glb`) into heightmaps. This is useful for baking terrain geometry from modeling software like Blender or ZBrush.
+Convert 3D meshes (`.obj`, `.stl`, `.ply`, `.glb`, `.gltf`) into heightmaps. This is useful for baking terrain geometry from modeling software like Blender or ZBrush.
 
 ## Usage
 
 ```bash
-heightcraft terrain.obj --output_path heightmap.png
+heightcraft terrain.obj --output_path heightmap.png --max_resolution 2048
 ```
 
 ## Large Models

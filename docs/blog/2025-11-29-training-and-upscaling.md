@@ -41,8 +41,19 @@ heightcraft --train \
   --pretrained_model my_custom_model.h5
 ```
 
-- `--epochs`: How many times to iterate over the dataset. 50-100 is usually good.
-- `--pretrained_model`: The output path for your new model.
+Arguments:
+*   `--dataset_path`: Path to a folder containing high-res images (PNG, JPG, TIF).
+*   `--pretrained_model`: Path to save the trained model (default: trained_model.h5).
+
+**Hyperparameters:**
+
+*   `--epochs` (Default: 10): How many times the AI sees the entire dataset.
+    *   *Effect:* Higher values (e.g., 50-100) generally lead to better quality but take longer. If set too high, the model might "memorize" the training data (overfitting) and perform poorly on new maps.
+*   `--batch_size` (Default: 16): How many images are processed at once.
+    *   *Effect:* Larger batches (32, 64) speed up training but require more GPU memory. Smaller batches (4, 8) are slower but offer more stable updates.
+*   `--learning_rate` (Default: 0.0001): How fast the AI adapts its internal weights.
+    *   *Effect:* A higher rate (e.g., 0.001) learns faster but might miss the optimal solution (unstable). A lower rate (e.g., 0.00001) is more precise but takes much longer to converge.
+
 
 ## Step 3: Upscale with Your Model
 

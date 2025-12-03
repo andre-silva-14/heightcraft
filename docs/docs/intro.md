@@ -11,7 +11,7 @@ It streamlines the pipeline from raw data (3D Meshes, LiDAR Point Clouds, or Low
 ## Key Features
 
 ### 🚀 AI-Powered Upscaling
-Transform low-resolution heightmaps into crisp, high-detail terrains using advanced AI models. Increase bit depth (e.g., 8-bit to 16-bit) to eliminate stepping artifacts.
+Transform low-resolution heightmaps into crisp, high-res/high-detail terrains using advanced AI models. Optionally increase original bit depth (e.g., 8-bit to 16-bit) to eliminate stepping artifacts.
 
 ### 📡 LiDAR Support
 Process massive `.las` and `.laz` point cloud files efficiently. Heightcraft uses a streaming, chunked processing pipeline to handle gigabytes of data with minimal memory footprint.

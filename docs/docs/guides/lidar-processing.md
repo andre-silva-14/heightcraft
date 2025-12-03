@@ -18,7 +18,7 @@ Heightcraft provides robust support for processing LiDAR point clouds (`.las`, `
 Simply provide a `.las` or `.laz` file as input.
 
 ```bash
-heightcraft scan.laz --output_path dem.tiff --bit_depth 32
+heightcraft scan.laz --output_path dem.tiff --bit_depth 32 --max_resolution 2048
 ```
 
 ## Memory Management

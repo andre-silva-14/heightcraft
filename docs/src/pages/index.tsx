@@ -34,7 +34,7 @@ export default function Home(): JSX.Element {
   return (
     <Layout
       title={siteConfig.title}
-      description="AI-Powered Heightmap Generation & Upscaling Tool">
+      description="Heightmap Generation & AI Upscaling Tool">
       <HomepageHeader />
       <main>
         <HomepageFeatures />
