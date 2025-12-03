@@ -40,7 +40,7 @@ heightcraft input_8bit.png --upscale --bit_depth 16 --output_path output_16bit.p
 
 ## Training Custom Models
 
-Heightcraft supports [training custom upscaling models](./blog/training-and-upscaling) on your own datasets.
+Heightcraft supports [training custom upscaling models](../../blog/training-and-upscaling) on your own datasets.
 
 ```bash
 heightcraft --train --dataset_path /path/to/high_res_tiffs --epochs 50
