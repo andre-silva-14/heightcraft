@@ -29,7 +29,7 @@ class TestReproduction(unittest.TestCase):
             
     def test_large_model_execution(self):
         # Arguments matching the user's report, but maybe scaled down slightly to avoid crashing the test runner if it is OOM
-        # User: --max_resolution 8192 --num_samples 300000000 --chunk_size 100000 --large_model -vv
+        # User: --max_resolution 8192 --num_samples 300000000 --chunk_size 500000 --large_model -vv
         
         # We'll use a smaller sample count initially to see if it runs at all, 
         # then we can try to increase it if it passes.
@@ -40,7 +40,7 @@ class TestReproduction(unittest.TestCase):
         args = [
             self.test_file,
             "--max_resolution", "1024", # Smaller resolution for test
-            "--num_samples", "100000", # Smaller samples for test
+            "--num_samples", "500000", # Smaller samples for test
             "--chunk_size", "10000",
             "--large_model",
             "-vv"

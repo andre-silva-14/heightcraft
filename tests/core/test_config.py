@@ -12,7 +12,7 @@ class TestConfig(unittest.TestCase):
             'bit_depth': 16,
             'split': 1,
             'use_gpu': False,
-            'num_samples': 100000,
+            'num_samples': 500000,
             'num_threads': 4,
             'large_model': False,
             'chunk_size': 1000000,

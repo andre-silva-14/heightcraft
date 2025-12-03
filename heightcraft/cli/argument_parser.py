@@ -101,7 +101,7 @@ def create_parser() -> argparse.ArgumentParser:
     processing_group.add_argument(
         "--num_samples",
         type=int,
-        default=100000,
+        default=500000,
         help="Number of points to sample from the 3D model surface.",
     )
     processing_group.add_argument(

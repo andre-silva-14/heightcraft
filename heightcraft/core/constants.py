@@ -23,7 +23,7 @@ SUPPORTED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".tiff", ".tif"]
 # Defaults
 DEFAULT_MAX_RESOLUTION = 256
 DEFAULT_BIT_DEPTH = 16
-DEFAULT_NUM_SAMPLES = 100000
+DEFAULT_NUM_SAMPLES = 500000
 DEFAULT_NUM_THREADS = 4
 DEFAULT_CACHE_DIR = os.path.join(os.getcwd(), ".cache")
 DEFAULT_OUTPUT_PATH = "height_map.png"
