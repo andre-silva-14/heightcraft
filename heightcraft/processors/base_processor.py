@@ -11,6 +11,7 @@ from typing import Dict, Optional, Tuple, Union, Generator, Any
 
 import numpy as np
 import trimesh
+from pathlib import Path
 
 from heightcraft.core.config import ApplicationConfig, ModelConfig, SamplingConfig
 from heightcraft.core.exceptions import ProcessingError
@@ -182,4 +183,18 @@ class BaseProcessor(abc.ABC):
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit with cleanup."""
-        self.cleanup() 
+        self.cleanup()
+
+    def _derive_output_path(self, base_path: str, suffix: str) -> str:
+        """
+        Derive an output path with a suffix.
+        
+        Args:
+            base_path: The base output path.
+            suffix: The suffix to add (e.g., "slope_map").
+            
+        Returns:
+            The derived path.
+        """
+        path = Path(base_path)
+        return str(path.parent / f"{path.stem}_{suffix}{path.suffix}") 

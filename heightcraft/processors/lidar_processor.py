@@ -69,6 +69,46 @@ class LidarProcessor(BaseProcessor):
             raise ProcessingError("Height map not generated")
             
         path = output_path or self.config.output_config.output_path
+        
+        # Apply Sea Level
+        if self.height_map_config.sea_level is not None:
+            # Convert world sea level to normalized sea level
+            min_z = self.bounds.get("min_z", 0.0)
+            max_z = self.bounds.get("max_z", 1.0)
+            z_range = max_z - min_z
+            
+            if z_range <= 1e-9:
+                normalized_sea_level = 0.0
+            else:
+                normalized_sea_level = (self.height_map_config.sea_level - min_z) / z_range
+            
+            self.logger.info(f"Applying sea level masking at {self.height_map_config.sea_level} (normalized: {normalized_sea_level:.4f})")
+            
+            self.height_map_obj, water_mask = self.height_map_service.apply_sea_level(
+                self.height_map_obj, normalized_sea_level
+            )
+            
+            # Save water mask
+            mask_path = self._derive_output_path(path, "water_mask")
+            self.logger.info(f"Saving water mask to {mask_path}")
+            self.height_map_service.save_height_map(water_mask, mask_path)
+        
+        # Generate Slope Map
+        if self.height_map_config.slope_map:
+            self.logger.info("Generating slope map")
+            slope_map = self.height_map_service.generate_slope_map(self.height_map_obj)
+            slope_path = self._derive_output_path(path, "slope_map")
+            self.logger.info(f"Saving slope map to {slope_path}")
+            self.height_map_service.save_height_map(slope_map, slope_path)
+            
+        # Generate Curvature Map
+        if self.height_map_config.curvature_map:
+            self.logger.info("Generating curvature map")
+            curvature_map = self.height_map_service.generate_curvature_map(self.height_map_obj)
+            curvature_path = self._derive_output_path(path, "curvature_map")
+            self.logger.info(f"Saving curvature map to {curvature_path}")
+            self.height_map_service.save_height_map(curvature_map, curvature_path)
+
         self.height_map_service.save_height_map(self.height_map_obj, path)
         return path
 

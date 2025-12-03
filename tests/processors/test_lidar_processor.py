@@ -22,6 +22,9 @@ class TestLidarProcessor(unittest.TestCase):
         self.config.height_map_config = MagicMock()
         self.config.height_map_config.max_resolution = 100
         self.config.height_map_config.bit_depth = 16
+        self.config.height_map_config.sea_level = None
+        self.config.height_map_config.slope_map = False
+        self.config.height_map_config.curvature_map = False
         
         self.config.sampling_config = MagicMock()
         self.config.sampling_config.num_threads = 1
